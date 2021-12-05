@@ -12,6 +12,7 @@
 
 #include "apex_cpu.h"
 #include "apex_macros.h"
+#include "free_list.h"
 
 /* Converts the PC(4000 series) into array index for code memory
  *
@@ -26,52 +27,107 @@ get_code_memory_index_from_pc(const int pc)
 static void
 print_instruction(const CPU_Stage *stage)
 {
-    switch (stage->opcode)
+    if (!stage->renamed)
     {
-        case OPCODE_ADD:
-        case OPCODE_SUB:
-        case OPCODE_MUL:
-        case OPCODE_DIV:
-        case OPCODE_AND:
-        case OPCODE_OR:
-        case OPCODE_XOR:
+        switch (stage->opcode)
         {
-            printf("%s,R%d,R%d,R%d ", stage->opcode_str, stage->rd, stage->rs1,
-                   stage->rs2);
-            break;
-        }
+            case OPCODE_ADD:
+            case OPCODE_SUB:
+            case OPCODE_MUL:
+            case OPCODE_DIV:
+            case OPCODE_AND:
+            case OPCODE_OR:
+            case OPCODE_XOR:
+            {
+                printf("%s,R%d,R%d,R%d ", stage->opcode_str, stage->rd, stage->rs1,
+                    stage->rs2);
+                break;
+            }
 
-        case OPCODE_MOVC:
-        {
-            printf("%s,R%d,#%d ", stage->opcode_str, stage->rd, stage->imm);
-            break;
-        }
+            case OPCODE_MOVC:
+            {
+                printf("%s,R%d,#%d ", stage->opcode_str, stage->rd, stage->imm);
+                break;
+            }
 
-        case OPCODE_LOAD:
-        {
-            printf("%s,R%d,R%d,#%d ", stage->opcode_str, stage->rd, stage->rs1,
-                   stage->imm);
-            break;
-        }
+            case OPCODE_LOAD:
+            {
+                printf("%s,R%d,R%d,#%d ", stage->opcode_str, stage->rd, stage->rs1,
+                    stage->imm);
+                break;
+            }
 
-        case OPCODE_STORE:
-        {
-            printf("%s,R%d,R%d,#%d ", stage->opcode_str, stage->rs1, stage->rs2,
-                   stage->imm);
-            break;
-        }
+            case OPCODE_STORE:
+            {
+                printf("%s,R%d,R%d,#%d ", stage->opcode_str, stage->rs1, stage->rs2,
+                    stage->imm);
+                break;
+            }
 
-        case OPCODE_BZ:
-        case OPCODE_BNZ:
-        {
-            printf("%s,#%d ", stage->opcode_str, stage->imm);
-            break;
-        }
+            case OPCODE_BZ:
+            case OPCODE_BNZ:
+            {
+                printf("%s,#%d ", stage->opcode_str, stage->imm);
+                break;
+            }
 
-        case OPCODE_HALT:
+            case OPCODE_HALT:
+            {
+                printf("%s", stage->opcode_str);
+                break;
+            }
+        }
+    }
+    else 
+    {
+        switch (stage->opcode)
         {
-            printf("%s", stage->opcode_str);
-            break;
+            case OPCODE_ADD:
+            case OPCODE_SUB:
+            case OPCODE_MUL:
+            case OPCODE_DIV:
+            case OPCODE_AND:
+            case OPCODE_OR:
+            case OPCODE_XOR:
+            {
+                printf("%s,R%d,R%d,R%d ", stage->opcode_str, stage->rd, stage->rs1,
+                    stage->rs2);
+                break;
+            }
+
+            case OPCODE_MOVC:
+            {
+                printf("%s,R%d,#%d -> %s,P%d,#%d", stage->opcode_str, stage->rd, stage->imm,
+                    stage->opcode_str, stage->pd, stage->imm);
+                break;
+            }
+
+            case OPCODE_LOAD:
+            {
+                printf("%s,R%d,R%d,#%d ", stage->opcode_str, stage->rd, stage->rs1,
+                    stage->imm);
+                break;
+            }
+
+            case OPCODE_STORE:
+            {
+                printf("%s,R%d,R%d,#%d ", stage->opcode_str, stage->rs1, stage->rs2,
+                    stage->imm);
+                break;
+            }
+
+            case OPCODE_BZ:
+            case OPCODE_BNZ:
+            {
+                printf("%s,#%d ", stage->opcode_str, stage->imm);
+                break;
+            }
+
+            case OPCODE_HALT:
+            {
+                printf("%s", stage->opcode_str);
+                break;
+            }
         }
     }
 }
@@ -147,12 +203,13 @@ APEX_fetch(APEX_CPU *cpu)
         cpu->fetch.rs1 = current_ins->rs1;
         cpu->fetch.rs2 = current_ins->rs2;
         cpu->fetch.imm = current_ins->imm;
+        cpu->fetch.renamed = 0;
 
         /* Update PC for next instruction */
         cpu->pc += 4;
 
-        /* Copy data from fetch latch to decode latch*/
-        cpu->decode = cpu->fetch;
+        /* Copy data from fetch latch to dr1 latch*/
+        cpu->dr1 = cpu->fetch;
 
         if (ENABLE_DEBUG_MESSAGES)
         {
@@ -168,48 +225,100 @@ APEX_fetch(APEX_CPU *cpu)
 }
 
 /*
- * Decode Stage of APEX Pipeline
+ * Decode/Rename 1 Stage of APEX Pipeline
  *
  * Note: You are free to edit this function according to your implementation
  */
 static void
-APEX_decode(APEX_CPU *cpu)
+APEX_dr1(APEX_CPU *cpu)
 {
-    if (cpu->decode.has_insn)
+    if (cpu->dr1.has_insn)
     {
         /* Read operands from register file based on the instruction type */
-        switch (cpu->decode.opcode)
+        switch (cpu->dr1.opcode)
         {
             case OPCODE_ADD:
             {
-                cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
-                cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
+                cpu->dr1.rs1_value = cpu->regs[cpu->dr1.rs1];
+                cpu->dr1.rs2_value = cpu->regs[cpu->dr1.rs2];
                 break;
             }
 
             case OPCODE_LOAD:
             {
-                cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+                cpu->dr1.rs1_value = cpu->regs[cpu->dr1.rs1];
                 break;
             }
 
             case OPCODE_MOVC:
             {
                 /* MOVC doesn't have register operands */
+                int freeReg = getPhysicalRegister(cpu);
+                if (freeReg != -1)
+                {
+                    // cpu->dr1.renamed = 1;
+                    cpu->dr1.pd = freeReg;
+                    printf("\nFree Physical Register: P%d\n", cpu->dr1.pd);
+                }
+                
                 break;
             }
         }
 
-        /* Copy data from decode latch to execute latch*/
-        cpu->execute = cpu->decode;
-        cpu->decode.has_insn = FALSE;
+        /* Copy data from dr1 latch to execute latch*/
+        cpu->execute = cpu->dr1;
+        cpu->dr1.has_insn = FALSE;
 
         if (ENABLE_DEBUG_MESSAGES)
         {
-            print_stage_content("Decode/RF", &cpu->decode);
+            print_stage_content("DR1/RF", &cpu->dr1);
         }
     }
 }
+
+/*
+ * Rename 2/Dispatch Stage of APEX Pipeline
+ *
+ * Note: You are free to edit this function according to your implementation
+ */
+// static void
+// APEX_r2d(APEX_CPU *cpu)
+// {
+//     if (cpu->decode.has_insn)
+//     {
+//         /* Read operands from register file based on the instruction type */
+//         switch (cpu->decode.opcode)
+//         {
+//             case OPCODE_ADD:
+//             {
+//                 cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+//                 cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
+//                 break;
+//             }
+
+//             case OPCODE_LOAD:
+//             {
+//                 cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+//                 break;
+//             }
+
+//             case OPCODE_MOVC:
+//             {
+//                 /* MOVC doesn't have register operands */
+//                 break;
+//             }
+//         }
+
+//         /* Copy data from decode latch to execute latch*/
+//         cpu->execute = cpu->decode;
+//         cpu->decode.has_insn = FALSE;
+
+//         if (ENABLE_DEBUG_MESSAGES)
+//         {
+//             print_stage_content("Decode/RF", &cpu->decode);
+//         }
+//     }
+// }
 
 /*
  * Execute Stage of APEX Pipeline
@@ -260,7 +369,7 @@ APEX_execute(APEX_CPU *cpu)
                     cpu->fetch_from_next_cycle = TRUE;
 
                     /* Flush previous stages */
-                    cpu->decode.has_insn = FALSE;
+                    cpu->dr1.has_insn = FALSE;
 
                     /* Make sure fetch stage is enabled to start fetching from new PC */
                     cpu->fetch.has_insn = TRUE;
@@ -280,7 +389,7 @@ APEX_execute(APEX_CPU *cpu)
                     cpu->fetch_from_next_cycle = TRUE;
 
                     /* Flush previous stages */
-                    cpu->decode.has_insn = FALSE;
+                    cpu->dr1.has_insn = FALSE;
 
                     /* Make sure fetch stage is enabled to start fetching from new PC */
                     cpu->fetch.has_insn = TRUE;
@@ -434,6 +543,11 @@ APEX_cpu_init(const char *filename)
     memset(cpu->data_memory, 0, sizeof(int) * DATA_MEMORY_SIZE);
     cpu->single_step = ENABLE_SINGLE_STEP;
 
+
+    cpu->free_list_front = -1;
+    cpu->free_list_rear = -1;
+    initializeFreeList(cpu);
+
     /* Parse input file and create code memory */
     cpu->code_memory = create_code_memory(filename, &cpu->code_memory_size);
     if (!cpu->code_memory)
@@ -493,7 +607,7 @@ APEX_cpu_run(APEX_CPU *cpu)
 
         APEX_memory(cpu);
         APEX_execute(cpu);
-        APEX_decode(cpu);
+        APEX_dr1(cpu);
         APEX_fetch(cpu);
 
         print_reg_file(cpu);

@@ -18,6 +18,9 @@
 /* Size of integer register file */
 #define REG_FILE_SIZE 16
 
+/* Size of physical register file */
+#define PHY_REG_FILE_SIZE 20
+
 /* Numeric OPCODE identifiers for instructions */
 #define OPCODE_ADD 0x0
 #define OPCODE_SUB 0x1
@@ -38,5 +41,8 @@
 
 /* Set this flag to 1 to enable cycle single-step mode */
 #define ENABLE_SINGLE_STEP 1
+
+#define FALSE 0x0
+#define TRUE 0x1
 
 #endif
