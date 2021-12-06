@@ -33,7 +33,7 @@ int isIQFull(APEX_CPU *cpu)
 }
 
 // Inserting an IQ Entry
-int insertIQEntry(APEX_CPU *cpu, int val) 
+int addIQEntry(APEX_CPU *cpu, IQ_Entry *iq_entry) 
 {
     if (isIQFull(cpu))
     {
@@ -49,9 +49,11 @@ int insertIQEntry(APEX_CPU *cpu, int val)
     }
 
     // Adding a new IQ Entry
-    current->next = (IQ_Entry *) malloc(sizeof(IQ_Entry));
-    current->next->status = val;
+    current->next = iq_entry;
     current->next->next = NULL;
+
+    cpu->current_iq_size++;
+    
     return 0;
 }
 

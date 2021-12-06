@@ -45,6 +45,11 @@
 #define OPCODE_BNZ 0xb
 #define OPCODE_HALT 0xc
 
+/* Numeric FU identifiers for instructions */
+#define INT_FU 0x0
+#define MUL_FU 0x1
+#define BRANCH_FU 0x2
+
 /* Set this flag to 1 to enable debug messages */
 #define ENABLE_DEBUG_MESSAGES 1
 

@@ -13,6 +13,9 @@
 #include "apex_cpu.h"
 #include "apex_macros.h"
 #include "free_list.h"
+#include "issue_queue.h"
+#include "load_store_queue.h"
+#include "reorder_buffer.h"
 
 /* Converts the PC(4000 series) into array index for code memory
  *
@@ -252,12 +255,18 @@ APEX_dr1(APEX_CPU *cpu)
 
             case OPCODE_MOVC:
             {
+                if(isIQFull(cpu) || isROBFull(cpu))
+                {
+                    cpu->fetch_from_next_cycle = TRUE;
+                    return;
+                }
                 /* MOVC doesn't have register operands */
                 int freeReg = getPhysicalRegister(cpu);
                 if (freeReg != -1)
                 {
                     // cpu->dr1.renamed = 1;
                     cpu->dr1.pd = freeReg;
+                    cpu->rename_table[cpu->dr1.rd] = cpu->dr1.pd;
                     // printf("\nFree Physical Register: P%d\n", cpu->dr1.pd);
                 }
                 
@@ -265,8 +274,10 @@ APEX_dr1(APEX_CPU *cpu)
             }
         }
 
+        // /* Copy data from dr1 latch to execute latch*/
+        // cpu->execute = cpu->dr1;
         /* Copy data from dr1 latch to execute latch*/
-        cpu->execute = cpu->dr1;
+        cpu->r2d = cpu->dr1;
         cpu->dr1.has_insn = FALSE;
 
         if (ENABLE_DEBUG_MESSAGES)
@@ -281,44 +292,55 @@ APEX_dr1(APEX_CPU *cpu)
  *
  * Note: You are free to edit this function according to your implementation
  */
-// static void
-// APEX_r2d(APEX_CPU *cpu)
-// {
-//     if (cpu->decode.has_insn)
-//     {
-//         /* Read operands from register file based on the instruction type */
-//         switch (cpu->decode.opcode)
-//         {
-//             case OPCODE_ADD:
-//             {
-//                 cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
-//                 cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
-//                 break;
-//             }
+static void
+APEX_r2d(APEX_CPU *cpu)
+{
+    if (cpu->r2d.has_insn)
+    {
+        /* Read operands from register file based on the instruction type */
+        switch (cpu->r2d.opcode)
+        {
+            // case OPCODE_ADD:
+            // {
+            //     cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+            //     cpu->decode.rs2_value = cpu->regs[cpu->decode.rs2];
+            //     break;
+            // }
 
-//             case OPCODE_LOAD:
-//             {
-//                 cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
-//                 break;
-//             }
+            // case OPCODE_LOAD:
+            // {
+            //     cpu->decode.rs1_value = cpu->regs[cpu->decode.rs1];
+            //     break;
+            // }
 
-//             case OPCODE_MOVC:
-//             {
-//                 /* MOVC doesn't have register operands */
-//                 break;
-//             }
-//         }
+            case OPCODE_MOVC:
+            {
+                /* MOVC doesn't have register operands */
+                
+                IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+                iq_entry->status=1;
+                iq_entry->FU_type = INT_FU;
+                iq_entry->imm = cpu->r2d.imm;
+                iq_entry->src1_ready_bit = 1;
+                iq_entry->src2_ready_bit = 1;
+                iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
+                addIQEntry(cpu, iq_entry);
 
-//         /* Copy data from decode latch to execute latch*/
-//         cpu->execute = cpu->decode;
-//         cpu->decode.has_insn = FALSE;
 
-//         if (ENABLE_DEBUG_MESSAGES)
-//         {
-//             print_stage_content("Decode/RF", &cpu->decode);
-//         }
-//     }
-// }
+                break;
+            }
+        }
+
+        /* Copy data from decode latch to execute latch*/
+        cpu->execute = cpu->r2d;
+        cpu->r2d.has_insn = FALSE;
+
+        if (ENABLE_DEBUG_MESSAGES)
+        {
+            print_stage_content("Rename 2/Dispatch", &cpu->r2d);
+        }
+    }
+}
 
 /*
  * Execute Stage of APEX Pipeline
@@ -552,6 +574,9 @@ APEX_cpu_init(const char *filename)
 
     cpu->lsq_front = -1;
     cpu->lsq_rear = -1;
+
+    cpu->rob_front = -1;
+    cpu->rob_rear = -1;
 
     /* Parse input file and create code memory */
     cpu->code_memory = create_code_memory(filename, &cpu->code_memory_size);

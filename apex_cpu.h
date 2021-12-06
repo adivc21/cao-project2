@@ -74,8 +74,21 @@ typedef struct LSQ_Entry
     int src1_ready_bit;
     int src1_tag;
     int src1_value;
-    struct LSQ_Entry *next;
+    // struct LSQ_Entry *next;
 } LSQ_Entry;
+
+/* Format of an ROB Entry  */
+typedef struct ROB_Entry
+{
+    int pc_value;
+    int arch_dest_reg;
+    int result;
+    int store_value;
+    int store_value_valid;
+    int exception_codes;
+    int res_mem_add_status;
+    int instr_type;
+} ROB_Entry;
 
 /* Model of APEX CPU */
 typedef struct APEX_CPU
@@ -105,6 +118,10 @@ typedef struct APEX_CPU
     LSQ_Entry *load_store_queue;
     int lsq_front;
     int lsq_rear;
+
+    ROB_Entry *reorder_buffer;
+    int rob_front;
+    int rob_rear;
     
     int code_memory_size;          /* Number of instruction in the input file */
     APEX_Instruction *code_memory; /* Code Memory */
@@ -124,6 +141,7 @@ typedef struct APEX_CPU
 	respectively. */
     CPU_Stage dr1;
     CPU_Stage r2d;
+    CPU_Stage iq_stage;
     CPU_Stage execute;
     CPU_Stage memory;
     CPU_Stage writeback;
