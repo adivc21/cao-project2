@@ -258,7 +258,7 @@ APEX_dr1(APEX_CPU *cpu)
                 {
                     // cpu->dr1.renamed = 1;
                     cpu->dr1.pd = freeReg;
-                    printf("\nFree Physical Register: P%d\n", cpu->dr1.pd);
+                    // printf("\nFree Physical Register: P%d\n", cpu->dr1.pd);
                 }
                 
                 break;
@@ -547,6 +547,11 @@ APEX_cpu_init(const char *filename)
     cpu->free_list_front = -1;
     cpu->free_list_rear = -1;
     initializeFreeList(cpu);
+    
+    cpu->current_iq_size = 0;
+
+    cpu->lsq_front = -1;
+    cpu->lsq_rear = -1;
 
     /* Parse input file and create code memory */
     cpu->code_memory = create_code_memory(filename, &cpu->code_memory_size);

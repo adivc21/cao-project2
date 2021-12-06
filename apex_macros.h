@@ -21,6 +21,15 @@
 /* Size of physical register file */
 #define PHY_REG_FILE_SIZE 20
 
+/* Size of Issue Queue */
+#define ISSUE_QUEUE_SIZE 8
+
+/* Size of Load Store Queue */
+#define LOAD_STORE_QUEUE_SIZE 6
+
+/* Size of Reorder Buffer */
+#define REORDER_BUFFER_SIZE 16
+
 /* Numeric OPCODE identifiers for instructions */
 #define OPCODE_ADD 0x0
 #define OPCODE_SUB 0x1

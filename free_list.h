@@ -1,8 +1,4 @@
 #include "apex_cpu.h"
-// #define PHY_REG_FILE_SIZE 20
-
-// int free_list[PHY_REG_FILE_SIZE];     /* Free list for Physical register file */
-
 
 // Initialize the Free List
 void initializeFreeList(APEX_CPU *cpu);

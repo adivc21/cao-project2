@@ -10,6 +10,10 @@
 #define _APEX_CPU_H_
 
 #include "apex_macros.h"
+// #include "free_list.h"
+// #include "issue_queue.h"
+// #include "load_store_queue.h"
+// #include "reorder_buffer.h"
 
 /* Format of an APEX instruction  */
 typedef struct APEX_Instruction
@@ -37,13 +41,41 @@ typedef struct CPU_Stage
     int result_buffer;
     int memory_address;
     int has_insn;
-    
+
     int renamed;
     int pd;
     int ps1;
     int ps2;
 } CPU_Stage;
 
+/* Format of an IQ Entry  */
+typedef struct IQ_Entry
+{
+    int status;
+    int FU_type;
+    int imm;
+    int src1_ready_bit;
+    int src1_tag;
+    int src1_value;
+    int src2_ready_bit;
+    int src2_tag;
+    int src2_value;
+    int dest_reg_or_lsq_index;
+    struct IQ_Entry *next;
+} IQ_Entry;
+
+/* Format of an LSQ Entry  */
+typedef struct LSQ_Entry
+{
+    int status;
+    int load_or_store;
+    int mem_add_is_valid;
+    int dest_reg_for_load;
+    int src1_ready_bit;
+    int src1_tag;
+    int src1_value;
+    struct LSQ_Entry *next;
+} LSQ_Entry;
 
 /* Model of APEX CPU */
 typedef struct APEX_CPU
@@ -67,6 +99,13 @@ typedef struct APEX_CPU
     int free_list_front;
     int free_list_rear;
 
+    IQ_Entry *issue_queue;
+    int current_iq_size;
+
+    LSQ_Entry *load_store_queue;
+    int lsq_front;
+    int lsq_rear;
+    
     int code_memory_size;          /* Number of instruction in the input file */
     APEX_Instruction *code_memory; /* Code Memory */
     int data_memory[DATA_MEMORY_SIZE]; /* Data Memory */
