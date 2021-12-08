@@ -30,7 +30,7 @@ get_code_memory_index_from_pc(const int pc)
 static void
 print_instruction(const CPU_Stage *stage)
 {
-    if (!stage->renamed)
+    if (!stage->regs_renamed)
     {
         switch (stage->opcode)
         {
@@ -173,6 +173,25 @@ print_reg_file(const APEX_CPU *cpu)
     printf("\n");
 }
 
+/* Debug function which prints the renamed registers
+ */
+static void
+print_rename_table(const APEX_CPU *cpu)
+{
+    printf("----------\n%s\n----------\n", "Rename Table:");
+
+    for (int i = 0; i < REG_FILE_SIZE; ++i)
+    {
+        if (cpu->reg_is_renamed[i])
+        {
+            printf("R%-3d -> P%-3d ", i, cpu->rename_table[i]);
+        }
+    }
+
+    printf("\n");
+
+}
+
 /*
  * Fetch Stage of APEX Pipeline
  *
@@ -206,7 +225,7 @@ APEX_fetch(APEX_CPU *cpu)
         cpu->fetch.rs1 = current_ins->rs1;
         cpu->fetch.rs2 = current_ins->rs2;
         cpu->fetch.imm = current_ins->imm;
-        cpu->fetch.renamed = 0;
+        cpu->fetch.regs_renamed = 0;
 
         /* Update PC for next instruction */
         cpu->pc += 4;
@@ -240,18 +259,18 @@ APEX_dr1(APEX_CPU *cpu)
         /* Read operands from register file based on the instruction type */
         switch (cpu->dr1.opcode)
         {
-            case OPCODE_ADD:
-            {
-                cpu->dr1.rs1_value = cpu->regs[cpu->dr1.rs1];
-                cpu->dr1.rs2_value = cpu->regs[cpu->dr1.rs2];
-                break;
-            }
+            // case OPCODE_ADD:
+            // {
+            //     cpu->dr1.rs1_value = cpu->regs[cpu->dr1.rs1];
+            //     cpu->dr1.rs2_value = cpu->regs[cpu->dr1.rs2];
+            //     break;
+            // }
 
-            case OPCODE_LOAD:
-            {
-                cpu->dr1.rs1_value = cpu->regs[cpu->dr1.rs1];
-                break;
-            }
+            // case OPCODE_LOAD:
+            // {
+            //     cpu->dr1.rs1_value = cpu->regs[cpu->dr1.rs1];
+            //     break;
+            // }
 
             case OPCODE_MOVC:
             {
@@ -315,9 +334,11 @@ APEX_r2d(APEX_CPU *cpu)
 
             case OPCODE_MOVC:
             {
-                /* MOVC doesn't have register operands */
+                cpu->reg_is_renamed[cpu->iq_stage.rd] = 1;
+                cpu->iq_stage.regs_renamed = 1;
                 
                 IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+                // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
                 iq_entry->status=1;
                 iq_entry->FU_type = INT_FU;
                 iq_entry->imm = cpu->r2d.imm;
@@ -326,13 +347,22 @@ APEX_r2d(APEX_CPU *cpu)
                 iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
                 addIQEntry(cpu, iq_entry);
 
+                ROB_Entry rob_entry;
+                rob_entry.pc_value = cpu->r2d.pc;
+                rob_entry.arch_dest_reg = cpu->r2d.rd;
+                rob_entry.res_mem_add_status = 0;
+                rob_entry.instr_type = INT_FU;
+                addROBEntry(cpu, rob_entry);
+
+                printIssueQueue(cpu);
+                printROB(cpu);
 
                 break;
             }
         }
 
         /* Copy data from decode latch to execute latch*/
-        cpu->execute = cpu->r2d;
+        // cpu->iq_stage = cpu->r2d;
         cpu->r2d.has_insn = FALSE;
 
         if (ENABLE_DEBUG_MESSAGES)
@@ -343,106 +373,112 @@ APEX_r2d(APEX_CPU *cpu)
 }
 
 /*
- * Execute Stage of APEX Pipeline
+ * Issue Queue of APEX Pipeline
  *
  * Note: You are free to edit this function according to your implementation
  */
 static void
-APEX_execute(APEX_CPU *cpu)
+APEX_iq_stage(APEX_CPU *cpu)
 {
-    if (cpu->execute.has_insn)
+    if (cpu->iq_stage.has_insn)
     {
         /* Execute logic based on instruction type */
-        switch (cpu->execute.opcode)
+        switch (cpu->iq_stage.opcode)
         {
-            case OPCODE_ADD:
-            {
-                cpu->execute.result_buffer
-                    = cpu->execute.rs1_value + cpu->execute.rs2_value;
+            // case OPCODE_ADD:
+            // {
+            //     cpu->execute.result_buffer
+            //         = cpu->execute.rs1_value + cpu->execute.rs2_value;
 
-                /* Set the zero flag based on the result buffer */
-                if (cpu->execute.result_buffer == 0)
-                {
-                    cpu->zero_flag = TRUE;
-                } 
-                else 
-                {
-                    cpu->zero_flag = FALSE;
-                }
-                break;
-            }
+            //     /* Set the zero flag based on the result buffer */
+            //     if (cpu->execute.result_buffer == 0)
+            //     {
+            //         cpu->zero_flag = TRUE;
+            //     } 
+            //     else 
+            //     {
+            //         cpu->zero_flag = FALSE;
+            //     }
+            //     break;
+            // }
 
-            case OPCODE_LOAD:
-            {
-                cpu->execute.memory_address
-                    = cpu->execute.rs1_value + cpu->execute.imm;
-                break;
-            }
+            // case OPCODE_LOAD:
+            // {
+            //     cpu->execute.memory_address
+            //         = cpu->execute.rs1_value + cpu->execute.imm;
+            //     break;
+            // }
 
-            case OPCODE_BZ:
-            {
-                if (cpu->zero_flag == TRUE)
-                {
-                    /* Calculate new PC, and send it to fetch unit */
-                    cpu->pc = cpu->execute.pc + cpu->execute.imm;
+            // case OPCODE_BZ:
+            // {
+            //     if (cpu->zero_flag == TRUE)
+            //     {
+            //         /* Calculate new PC, and send it to fetch unit */
+            //         cpu->pc = cpu->execute.pc + cpu->execute.imm;
                     
-                    /* Since we are using reverse callbacks for pipeline stages, 
-                     * this will prevent the new instruction from being fetched in the current cycle*/
-                    cpu->fetch_from_next_cycle = TRUE;
+            //         /* Since we are using reverse callbacks for pipeline stages, 
+            //          * this will prevent the new instruction from being fetched in the current cycle*/
+            //         cpu->fetch_from_next_cycle = TRUE;
 
-                    /* Flush previous stages */
-                    cpu->dr1.has_insn = FALSE;
+            //         /* Flush previous stages */
+            //         cpu->dr1.has_insn = FALSE;
 
-                    /* Make sure fetch stage is enabled to start fetching from new PC */
-                    cpu->fetch.has_insn = TRUE;
-                }
-                break;
-            }
+            //         /* Make sure fetch stage is enabled to start fetching from new PC */
+            //         cpu->fetch.has_insn = TRUE;
+            //     }
+            //     break;
+            // }
 
-            case OPCODE_BNZ:
-            {
-                if (cpu->zero_flag == FALSE)
-                {
-                    /* Calculate new PC, and send it to fetch unit */
-                    cpu->pc = cpu->execute.pc + cpu->execute.imm;
+            // case OPCODE_BNZ:
+            // {
+            //     if (cpu->zero_flag == FALSE)
+            //     {
+            //         /* Calculate new PC, and send it to fetch unit */
+            //         cpu->pc = cpu->execute.pc + cpu->execute.imm;
                     
-                    /* Since we are using reverse callbacks for pipeline stages, 
-                     * this will prevent the new instruction from being fetched in the current cycle*/
-                    cpu->fetch_from_next_cycle = TRUE;
+            //         /* Since we are using reverse callbacks for pipeline stages, 
+            //          * this will prevent the new instruction from being fetched in the current cycle*/
+            //         cpu->fetch_from_next_cycle = TRUE;
 
-                    /* Flush previous stages */
-                    cpu->dr1.has_insn = FALSE;
+            //         /* Flush previous stages */
+            //         cpu->dr1.has_insn = FALSE;
 
-                    /* Make sure fetch stage is enabled to start fetching from new PC */
-                    cpu->fetch.has_insn = TRUE;
-                }
-                break;
-            }
+            //         /* Make sure fetch stage is enabled to start fetching from new PC */
+            //         cpu->fetch.has_insn = TRUE;
+            //     }
+            //     break;
+            // }
 
             case OPCODE_MOVC: 
             {
-                cpu->execute.result_buffer = cpu->execute.imm;
 
-                /* Set the zero flag based on the result buffer */
-                if (cpu->execute.result_buffer == 0)
+                if(cpu->is_int_unit_free)
                 {
-                    cpu->zero_flag = TRUE;
-                } 
-                else 
-                {
-                    cpu->zero_flag = FALSE;
+                    cpu->is_int_unit_free = 0;
+
+                    // /* Copy data from execute latch to intFU latch*/
+                    // cpu->intFU = cpu->iq_stage;
+                    // cpu->execute.has_insn = FALSE;
+
+                    // if (ENABLE_DEBUG_MESSAGES)
+                    // {
+                    //     print_stage_content("Execute", &cpu->execute);
+                    // }
                 }
+
+                // cpu->execute.result_buffer = cpu->execute.imm;
+
+                // /* Set the zero flag based on the result buffer */
+                // if (cpu->execute.result_buffer == 0)
+                // {
+                //     cpu->zero_flag = TRUE;
+                // } 
+                // else 
+                // {
+                //     cpu->zero_flag = FALSE;
+                // }
                 break;
             }
-        }
-
-        /* Copy data from execute latch to memory latch*/
-        cpu->memory = cpu->execute;
-        cpu->execute.has_insn = FALSE;
-
-        if (ENABLE_DEBUG_MESSAGES)
-        {
-            print_stage_content("Execute", &cpu->execute);
         }
     }
 }
@@ -571,6 +607,11 @@ APEX_cpu_init(const char *filename)
     initializeFreeList(cpu);
     
     cpu->current_iq_size = 0;
+    // cpu->issue_queue = (IQ_Entry *) calloc(1, sizeof(IQ_Entry));
+    cpu->iq_head = (IQ_Entry *) calloc(1, sizeof(IQ_Entry));
+    cpu->iq_current = (IQ_Entry *) calloc(1, sizeof(IQ_Entry));
+    cpu->iq_head = NULL;
+    cpu->iq_current = NULL;
 
     cpu->lsq_front = -1;
     cpu->lsq_rear = -1;
@@ -636,10 +677,12 @@ APEX_cpu_run(APEX_CPU *cpu)
         }
 
         APEX_memory(cpu);
-        APEX_execute(cpu);
+        APEX_iq_stage(cpu);
+        APEX_r2d(cpu);
+        // APEX_execute(cpu);
         APEX_dr1(cpu);
         APEX_fetch(cpu);
-
+        print_rename_table(cpu);
         print_reg_file(cpu);
 
         if (cpu->single_step)

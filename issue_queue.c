@@ -3,22 +3,31 @@
 
 #include "issue_queue.h"
 
-IQ_Entry *head = NULL;
-IQ_Entry *current = NULL;
-
 // Print the Issue Queue details
-void printIssueQueue() 
+void printIssueQueue(APEX_CPU *cpu) 
 {
-    IQ_Entry *ptr = head;
-    printf("\n[ ");
 
+    IQ_Entry *ptr = cpu->iq_head;
+    printf("\n\nIssue Queue entries: ");
+
+    int entryNo = 0;
     while(ptr != NULL) 
     {
-        printf("(%d,%d) ",ptr->status,ptr->FU_type);
+        printf("\nIssue Queue index: %d", entryNo);
+        printf("\nStatus: %d", ptr->status);
+        printf("\nFU type: %d", ptr->FU_type);
+        printf("\nLiteral value: %d", ptr->imm);
+        printf("\nSrc1 ready bit: %d", ptr->src1_ready_bit);
+        printf("\nSrc1 tag: %d", ptr->src1_tag);
+        printf("\nSrc1 value: %d", ptr->src1_value);
+        printf("\nSrc2 ready bit: %d", ptr->src2_ready_bit);
+        printf("\nSrc2 tag: %d", ptr->src2_tag);
+        printf("\nSrc2 value: %d", ptr->src2_value);
+        printf("\nPhy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
+        
+        entryNo++;
         ptr = ptr->next;
     }
-	
-   printf(" ]");
 }
 
 
@@ -41,17 +50,24 @@ int addIQEntry(APEX_CPU *cpu, IQ_Entry *iq_entry)
         return -1;
     }
 
-    IQ_Entry *current = cpu->issue_queue;
-
-    while (current->next != NULL) 
+    if (cpu->iq_head == NULL)
     {
-        current = current->next;
+        cpu->iq_head = iq_entry;
+        cpu->iq_head->next = NULL;
+        cpu->current_iq_size++;
+        
+        return 0;
     }
 
-    // Adding a new IQ Entry
-    current->next = iq_entry;
-    current->next->next = NULL;
+    cpu->iq_current = cpu->iq_head;
 
+    while (cpu->iq_current->next != NULL) 
+    {
+        cpu->iq_current = cpu->iq_current->next;
+    }
+
+    cpu->iq_current->next = iq_entry;
+    cpu->iq_current->next->next = NULL;
     cpu->current_iq_size++;
     
     return 0;

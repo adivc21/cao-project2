@@ -36,16 +36,18 @@ typedef struct CPU_Stage
     int rs2;
     int rd;
     int imm;
-    int rs1_value;
-    int rs2_value;
+    // int rs1_value;
+    // int rs2_value;
     int result_buffer;
     int memory_address;
     int has_insn;
 
-    int renamed;
+    int regs_renamed;
     int pd;
     int ps1;
     int ps2;
+    int ps1_value;
+    int ps2_value;
 } CPU_Stage;
 
 /* Format of an IQ Entry  */
@@ -102,6 +104,7 @@ typedef struct APEX_CPU
     int regs_positive_flags[REG_FILE_SIZE];         /* Positive flags for Integer register file */
 
     int rename_table[REG_FILE_SIZE];                /* Rename Table for Integer register file */
+    int reg_is_renamed[REG_FILE_SIZE];
     int rename_table_ccr;                           /* Rename Table Condition Code Register */
 
     int phy_regs[PHY_REG_FILE_SIZE];                /* Physical register file */
@@ -112,14 +115,16 @@ typedef struct APEX_CPU
     int free_list_front;
     int free_list_rear;
 
-    IQ_Entry *issue_queue;
+    // IQ_Entry *issue_queue;
     int current_iq_size;
+    IQ_Entry *iq_head;
+    IQ_Entry *iq_current;
 
-    LSQ_Entry *load_store_queue;
+    LSQ_Entry load_store_queue[LOAD_STORE_QUEUE_SIZE];
     int lsq_front;
     int lsq_rear;
 
-    ROB_Entry *reorder_buffer;
+    ROB_Entry reorder_buffer[REORDER_BUFFER_SIZE];
     int rob_front;
     int rob_rear;
     
@@ -142,7 +147,10 @@ typedef struct APEX_CPU
     CPU_Stage dr1;
     CPU_Stage r2d;
     CPU_Stage iq_stage;
-    CPU_Stage execute;
+    // CPU_Stage execute;
+    CPU_Stage intFU;
+    CPU_Stage mulFU;
+    CPU_Stage branchFU;
     CPU_Stage memory;
     CPU_Stage writeback;
 } APEX_CPU;
