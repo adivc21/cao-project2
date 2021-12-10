@@ -173,6 +173,32 @@ print_reg_file(const APEX_CPU *cpu)
     printf("\n");
 }
 
+/* Debug function which prints the register file
+ *
+ * Note: You are not supposed to edit this function
+ */
+static void
+print_phy_reg_file(const APEX_CPU *cpu)
+{
+    int i;
+
+    printf("----------\n%s\n----------\n", "Registers:");
+
+    for (int i = 0; i < PHY_REG_FILE_SIZE / 2; ++i)
+    {
+        printf("P%-3d[%-3d] ", i, cpu->phy_regs[i]);
+    }
+
+    printf("\n");
+
+    for (i = (PHY_REG_FILE_SIZE / 2); i < PHY_REG_FILE_SIZE; ++i)
+    {
+        printf("P%-3d[%-3d] ", i, cpu->phy_regs[i]);
+    }
+
+    printf("\n");
+}
+
 /* Debug function which prints the renamed registers
  */
 static void
@@ -291,6 +317,30 @@ APEX_dr1(APEX_CPU *cpu)
                 
                 break;
             }
+
+            case OPCODE_MUL:
+            {
+                if(isIQFull(cpu) || isROBFull(cpu))
+                {
+                    cpu->fetch_from_next_cycle = TRUE;
+                    return;
+                }
+                
+                cpu->dr1.ps1=cpu->rename_table[cpu->dr1.rs1];
+                cpu->dr1.ps2=cpu->rename_table[cpu->dr1.rs2];
+
+
+                int freeReg = getPhysicalRegister(cpu);
+                if (freeReg != -1)
+                {
+                    // cpu->dr1.renamed = 1;
+                    cpu->dr1.pd = freeReg;
+                    cpu->rename_table[cpu->dr1.rd] = cpu->dr1.pd;
+                    // printf("\nFree Physical Register: P%d\n", cpu->dr1.pd);
+                }
+                
+                break;
+            }
         }
 
         // /* Copy data from dr1 latch to execute latch*/
@@ -334,31 +384,94 @@ APEX_r2d(APEX_CPU *cpu)
 
             case OPCODE_MOVC:
             {
-                cpu->reg_is_renamed[cpu->iq_stage.rd] = 1;
-                cpu->iq_stage.regs_renamed = 1;
+                cpu->reg_is_renamed[cpu->r2d.rd] = 1;
+                cpu->r2d.regs_renamed = 1;
+
+                cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
                 
                 IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
                 // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
+                iq_entry->pc_value = cpu->r2d.pc;
                 iq_entry->status=1;
+                iq_entry->opcode = cpu->r2d.opcode;
                 iq_entry->FU_type = INT_FU;
                 iq_entry->imm = cpu->r2d.imm;
                 iq_entry->src1_ready_bit = 1;
                 iq_entry->src2_ready_bit = 1;
                 iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
+                iq_entry->cpu_stage = cpu->r2d;
                 addIQEntry(cpu, iq_entry);
 
                 ROB_Entry rob_entry;
                 rob_entry.pc_value = cpu->r2d.pc;
                 rob_entry.arch_dest_reg = cpu->r2d.rd;
-                rob_entry.res_mem_add_status = 0;
-                rob_entry.instr_type = INT_FU;
+                rob_entry.res_mem_add_status = INVALID;
+                rob_entry.instr_type = R2R;
                 addROBEntry(cpu, rob_entry);
 
                 printIssueQueue(cpu);
-                printROB(cpu);
+                // printROB(cpu);
 
                 break;
             }
+            case OPCODE_MUL:
+            {
+                cpu->reg_is_renamed[cpu->r2d.rd] = 1;
+                cpu->r2d.regs_renamed = 1;
+
+                cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
+
+                IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+                // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
+                iq_entry->pc_value = cpu->r2d.pc;
+                iq_entry->status=1;
+                iq_entry->opcode = cpu->r2d.opcode;
+                iq_entry->FU_type = MUL_FU;
+                iq_entry->imm = cpu->r2d.imm;
+                
+                if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
+                {
+                    cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
+                    iq_entry->src1_ready_bit = READY;
+                    iq_entry->src1_tag = cpu->r2d.ps1;
+                    iq_entry->src1_value = cpu->r2d.ps1_value;
+                }
+                else
+                {
+                    iq_entry->src1_ready_bit = NOT_READY;
+                    iq_entry->src1_tag = cpu->r2d.ps1;
+                }
+
+                if (cpu->is_phy_reg_valid[cpu->r2d.ps2])
+                {
+                    cpu->r2d.ps2_value = cpu->phy_regs[cpu->r2d.ps2];
+                    iq_entry->src2_ready_bit = READY;
+                    iq_entry->src2_tag = cpu->r2d.ps1;
+                    iq_entry->src2_value = cpu->r2d.ps2_value;
+                }
+                else
+                {
+                    iq_entry->src2_ready_bit = NOT_READY;
+                    iq_entry->src2_tag = cpu->r2d.ps2;
+                }
+                
+                iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
+                iq_entry->cpu_stage = cpu->r2d;
+                addIQEntry(cpu, iq_entry);
+
+                ROB_Entry rob_entry;
+                rob_entry.pc_value = cpu->r2d.pc;
+                rob_entry.arch_dest_reg = cpu->r2d.rd;
+                rob_entry.res_mem_add_status = INVALID;
+                rob_entry.instr_type = R2R;
+                addROBEntry(cpu, rob_entry);
+
+                // printIssueQueue(cpu);
+                // printROB(cpu);
+
+                break;
+            }
+
         }
 
         /* Copy data from decode latch to execute latch*/
@@ -380,10 +493,56 @@ APEX_r2d(APEX_CPU *cpu)
 static void
 APEX_iq_stage(APEX_CPU *cpu)
 {
-    if (cpu->iq_stage.has_insn)
+    
+    if (!cpu->intFU.has_insn)
     {
-        /* Execute logic based on instruction type */
-        switch (cpu->iq_stage.opcode)
+        // printf("\nTest line 1\n");
+        cpu->intFUInstruction = getInstructionForIntFU(cpu);
+        // printf("\nIQ stage retrieved instruction PC value: %d", cpu->intFUInstruction->pc_value);
+        if (cpu->intFUInstruction != NULL)
+        {
+            // printf("\nIQ stage retrieved instruction PC value: %d\n", cpu->intFUInstruction->pc_value);
+            // printf("\n IQ entry retrieved");
+            cpu->intFU.has_insn = TRUE;
+        }
+        else
+        {
+            printf("\nIQ Entry retrieved is NULL\n");
+        }
+    }
+
+    if (!cpu->mulFU.has_insn)
+    {
+        
+        cpu->mulFUInstruction = getInstructionForMulFU(cpu);
+        printf("\nTest line 1\n");
+        // printf("\nIQ stage retrieved instruction PC value: %d", cpu->intFUInstruction->pc_value);
+        if (cpu->mulFUInstruction != NULL)
+        {
+            // printf("\nIQ stage retrieved instruction PC value: %d\n", cpu->intFUInstruction->pc_value);
+            // printf("\n IQ entry retrieved");
+            cpu->mulFU.has_insn = TRUE;
+        }
+        else
+        {
+            printf("\nMUL IQ Entry retrieved is NULL\n");
+        }
+    }
+}
+
+
+
+
+/*
+ * IntFU of APEX Pipeline
+ */
+static void
+APEX_intFU(APEX_CPU *cpu)
+{
+    // printf("Does INTFU have an instruction: %d\n", cpu->intFU.has_insn);
+    if (cpu->intFU.has_insn)
+    {
+        switch (cpu->intFUInstruction->opcode)
         {
             // case OPCODE_ADD:
             // {
@@ -451,37 +610,142 @@ APEX_iq_stage(APEX_CPU *cpu)
 
             case OPCODE_MOVC: 
             {
-
-                if(cpu->is_int_unit_free)
-                {
-                    cpu->is_int_unit_free = 0;
-
-                    // /* Copy data from execute latch to intFU latch*/
-                    // cpu->intFU = cpu->iq_stage;
-                    // cpu->execute.has_insn = FALSE;
-
-                    // if (ENABLE_DEBUG_MESSAGES)
-                    // {
-                    //     print_stage_content("Execute", &cpu->execute);
-                    // }
-                }
-
-                // cpu->execute.result_buffer = cpu->execute.imm;
-
-                // /* Set the zero flag based on the result buffer */
-                // if (cpu->execute.result_buffer == 0)
-                // {
-                //     cpu->zero_flag = TRUE;
-                // } 
-                // else 
-                // {
-                //     cpu->zero_flag = FALSE;
-                // }
+                cpu->intFU = cpu->intFUInstruction->cpu_stage;
+                cpu->intFU.result_buffer = cpu->intFUInstruction->imm + 0;
+                cpu->intFU.pd = cpu->intFUInstruction->dest_reg_or_lsq_index;
+                // printf("Dest Phy Reg: P%d\n", cpu->intFU.pd);
+                // printf("Result value: %d\n", cpu->intFU.result_buffer);
                 break;
             }
+
+            default:
+                break;
+        }
+        // printf("Does INTFU have an instruction: %d\n", cpu->intFU.has_insn);
+        /* Copy data from execute latch to intFU latch*/
+        cpu->intFU_fwd_bus = cpu->intFU;
+        cpu->intFU.has_insn = FALSE;
+
+        if (ENABLE_DEBUG_MESSAGES)
+        {
+            print_stage_content("Integer FU", &cpu->intFU);
         }
     }
 }
+
+/*
+ * MulFU of APEX Pipeline
+ */
+static void
+APEX_mulFU(APEX_CPU *cpu)
+{
+    // printf("Does INTFU have an instruction: %d\n", cpu->intFU.has_insn);
+    if (cpu->mulFU.has_insn)
+    {
+        switch (cpu->mulFUInstruction->opcode)
+        {
+            case OPCODE_MUL: 
+            {
+                if (cpu->mulFUstage != 3)
+                {
+                    cpu->mulFUstage++;
+                }
+                else
+                {
+                    cpu->mulFU = cpu->mulFUInstruction->cpu_stage;
+                    cpu->mulFU.result_buffer 
+                        = cpu->mulFUInstruction->src1_value * cpu->mulFUInstruction->src2_value;
+                    cpu->mulFU.pd = cpu->mulFUInstruction->dest_reg_or_lsq_index;
+                    cpu->mulFUstage = 0;
+                    // printf("Dest Phy Reg: P%d\n", cpu->intFU.pd);
+                    // printf("Result value: %d\n", cpu->intFU.result_buffer);
+                    break;
+                }
+
+            }
+
+            default:
+                break;
+        }
+        // printf("Does INTFU have an instruction: %d\n", cpu->intFU.has_insn);
+        /* Copy data from execute latch to intFU latch*/
+        cpu->mulFU_fwd_bus = cpu->intFU;
+        cpu->mulFU.has_insn = FALSE;
+
+        if (ENABLE_DEBUG_MESSAGES)
+        {
+            print_stage_content("Multiplication FU", &cpu->mulFU);
+        }
+    }
+}
+
+/*
+ * IntFU FWD bus of APEX Pipeline
+ */
+static void
+APEX_intFU_fwd_bus(APEX_CPU *cpu)
+{
+    // printf("Does INTFU FWD bus have an instruction: %d\n", cpu->intFU_fwd_bus.has_insn);
+    if (cpu->intFU_fwd_bus.has_insn)
+    {
+        cpu->phy_regs[cpu->intFU_fwd_bus.pd] = cpu->intFU_fwd_bus.result_buffer;
+        cpu->is_phy_reg_valid[cpu->intFU_fwd_bus.pd] = VALID;
+        // printf("\nINT FWD bus pc value: %d\n", cpu->intFU_fwd_bus.pc);
+        updateIQEntries(cpu, INT_FU);
+        updateROBEntries(cpu, INT_FU);
+        updateLSQEntries(cpu, INT_FU);
+        // printf("Dest Phy Reg in forward: P%d = %d\n", cpu->intFU_fwd_bus.pd, cpu->phy_regs[cpu->intFU_fwd_bus.pd]);
+        // printIssueQueue(cpu);
+        // printROB(cpu);
+        //printf("Result value: %d\n", cpu->intFU.result_buffer);
+    }
+
+    /* Copy data from execute latch to intFU latch*/
+    // cpu->intFU = cpu->iq_stage;
+    cpu->intFU_fwd_bus.has_insn = FALSE;
+
+    if (ENABLE_DEBUG_MESSAGES)
+    {
+        // print_stage_content("Integer FU", &cpu->intFU);
+        printf("\nIntFU FWD bus: P%d = %d\n", 
+            cpu->intFU_fwd_bus.pd, cpu->intFU_fwd_bus.result_buffer);
+    }
+}
+
+
+/*
+ * MulFU FWD bus of APEX Pipeline
+ */
+static void
+APEX_mulFU_fwd_bus(APEX_CPU *cpu)
+{
+    // printf("Does INTFU FWD bus have an instruction: %d\n", cpu->intFU_fwd_bus.has_insn);
+    if (cpu->mulFU_fwd_bus.has_insn)
+    {
+        cpu->phy_regs[cpu->mulFU_fwd_bus.pd] = cpu->mulFU_fwd_bus.result_buffer;
+        cpu->is_phy_reg_valid[cpu->mulFU_fwd_bus.pd] = VALID;
+        // printf("\nINT FWD bus pc value: %d\n", cpu->intFU_fwd_bus.pc);
+        updateIQEntries(cpu, MUL_FU);
+        updateROBEntries(cpu, MUL_FU);
+        updateLSQEntries(cpu, MUL_FU);
+        // printf("Dest Phy Reg in forward: P%d = %d\n", cpu->intFU_fwd_bus.pd, cpu->phy_regs[cpu->intFU_fwd_bus.pd]);
+        // printIssueQueue(cpu);
+        // printROB(cpu);
+        //printf("Result value: %d\n", cpu->intFU.result_buffer);
+    }
+
+    /* Copy data from execute latch to intFU latch*/
+    // cpu->intFU = cpu->iq_stage;
+    cpu->mulFU_fwd_bus.has_insn = FALSE;
+
+    if (ENABLE_DEBUG_MESSAGES)
+    {
+        // print_stage_content("Integer FU", &cpu->intFU);
+        printf("\nMulFU FWD bus: P%d = %d\n", 
+            cpu->mulFU_fwd_bus.pd, cpu->mulFU_fwd_bus.result_buffer);
+    }
+}
+
 
 /*
  * Memory Stage of APEX Pipeline
@@ -527,46 +791,48 @@ APEX_memory(APEX_CPU *cpu)
  * Note: You are free to edit this function according to your implementation
  */
 static int
-APEX_writeback(APEX_CPU *cpu)
+APEX_ROB_retirement(APEX_CPU *cpu)
 {
-    if (cpu->writeback.has_insn)
-    {
-        /* Write result to register file based on instruction type */
-        switch (cpu->writeback.opcode)
-        {
-            case OPCODE_ADD:
-            {
-                cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
-                break;
-            }
+    commitROBHead(cpu);
 
-            case OPCODE_LOAD:
-            {
-                cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
-                break;
-            }
+    // if (cpu->writeback.has_insn)
+    // {
+    //     /* Write result to register file based on instruction type */
+    //     switch (cpu->writeback.opcode)
+    //     {
+    //         case OPCODE_ADD:
+    //         {
+    //             cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
+    //             break;
+    //         }
 
-            case OPCODE_MOVC: 
-            {
-                cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
-                break;
-            }
-        }
+    //         case OPCODE_LOAD:
+    //         {
+    //             cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
+    //             break;
+    //         }
 
-        cpu->insn_completed++;
-        cpu->writeback.has_insn = FALSE;
+    //         case OPCODE_MOVC: 
+    //         {
+    //             cpu->regs[cpu->writeback.rd] = cpu->writeback.result_buffer;
+    //             break;
+    //         }
+    //     }
 
-        if (ENABLE_DEBUG_MESSAGES)
-        {
-            print_stage_content("Writeback", &cpu->writeback);
-        }
+    //     cpu->insn_completed++;
+    //     cpu->writeback.has_insn = FALSE;
 
-        if (cpu->writeback.opcode == OPCODE_HALT)
-        {
-            /* Stop the APEX simulator */
-            return TRUE;
-        }
-    }
+    //     if (ENABLE_DEBUG_MESSAGES)
+    //     {
+    //         print_stage_content("Writeback", &cpu->writeback);
+    //     }
+
+    //     if (cpu->writeback.opcode == OPCODE_HALT)
+    //     {
+    //         /* Stop the APEX simulator */
+    //         return TRUE;
+    //     }
+    // }
 
     /* Default */
     return 0;
@@ -613,11 +879,17 @@ APEX_cpu_init(const char *filename)
     cpu->iq_head = NULL;
     cpu->iq_current = NULL;
 
+    // cpu->intFUInstruction = (IQ_Entry *) calloc(1, sizeof(IQ_Entry));
+    // cpu->intFUInstruction = NULL;
+    cpu->mulFUstage = 0;
+
     cpu->lsq_front = -1;
     cpu->lsq_rear = -1;
 
     cpu->rob_front = -1;
     cpu->rob_rear = -1;
+
+    cpu->clock++;
 
     /* Parse input file and create code memory */
     cpu->code_memory = create_code_memory(filename, &cpu->code_memory_size);
@@ -669,19 +941,23 @@ APEX_cpu_run(APEX_CPU *cpu)
             printf("--------------------------------------------\n");
         }
 
-        if (APEX_writeback(cpu))
-        {
-            /* Halt in writeback stage */
-            printf("APEX_CPU: Simulation Complete, cycles = %d instructions = %d\n", cpu->clock, cpu->insn_completed);
-            break;
-        }
+        // if (APEX_writeback(cpu))
+        // {
+        //     /* Halt in writeback stage */
+        //     printf("APEX_CPU: Simulation Complete, cycles = %d instructions = %d\n", cpu->clock, cpu->insn_completed);
+        //     break;
+        // }
 
-        APEX_memory(cpu);
+        APEX_ROB_retirement(cpu);
+        // // APEX_memory(cpu);
+        APEX_intFU_fwd_bus(cpu);
+        APEX_intFU(cpu);
         APEX_iq_stage(cpu);
         APEX_r2d(cpu);
         // APEX_execute(cpu);
         APEX_dr1(cpu);
         APEX_fetch(cpu);
+        print_phy_reg_file(cpu);
         print_rename_table(cpu);
         print_reg_file(cpu);
 

@@ -53,7 +53,9 @@ typedef struct CPU_Stage
 /* Format of an IQ Entry  */
 typedef struct IQ_Entry
 {
+    int pc_value;
     int status;
+    int opcode;
     int FU_type;
     int imm;
     int src1_ready_bit;
@@ -63,15 +65,18 @@ typedef struct IQ_Entry
     int src2_tag;
     int src2_value;
     int dest_reg_or_lsq_index;
+    CPU_Stage cpu_stage;
     struct IQ_Entry *next;
 } IQ_Entry;
 
 /* Format of an LSQ Entry  */
 typedef struct LSQ_Entry
 {
+
     int status;
     int load_or_store;
     int mem_add_is_valid;
+    int mem_add;
     int dest_reg_for_load;
     int src1_ready_bit;
     int src1_tag;
@@ -85,10 +90,10 @@ typedef struct ROB_Entry
     int pc_value;
     int arch_dest_reg;
     int result;
+    int res_mem_add_status;
     int store_value;
     int store_value_valid;
     int exception_codes;
-    int res_mem_add_status;
     int instr_type;
 } ROB_Entry;
 
@@ -100,14 +105,15 @@ typedef struct APEX_CPU
     int insn_completed;            /* Instructions retired */
     
     int regs[REG_FILE_SIZE];                        /* Integer register file */
-    int regs_zero_flags[REG_FILE_SIZE];             /* Zero flags for Integer register file */
-    int regs_positive_flags[REG_FILE_SIZE];         /* Positive flags for Integer register file */
+    // int regs_zero_flags[REG_FILE_SIZE];             /* Zero flags for Integer register file */
+    // int regs_positive_flags[REG_FILE_SIZE];         /* Positive flags for Integer register file */
 
     int rename_table[REG_FILE_SIZE];                /* Rename Table for Integer register file */
     int reg_is_renamed[REG_FILE_SIZE];
     int rename_table_ccr;                           /* Rename Table Condition Code Register */
 
     int phy_regs[PHY_REG_FILE_SIZE];                /* Physical register file */
+    int is_phy_reg_valid[PHY_REG_FILE_SIZE];            /* Valid flags for Physical registers */
     int phy_regs_zero_flags[PHY_REG_FILE_SIZE];         /* Zero flags for Physical register file */
     int phy_regs_positive_flags[PHY_REG_FILE_SIZE];     /* Positive flags for Physical register file */
 
@@ -135,6 +141,12 @@ typedef struct APEX_CPU
     int zero_flag;                 /* {TRUE, FALSE} Used by BZ and BNZ to branch */
     int fetch_from_next_cycle;
 
+    IQ_Entry *intFUInstruction;
+    IQ_Entry *mulFUInstruction;
+    IQ_Entry *branchFUInstruction;
+
+    int mulFUstage;
+
     int is_int_unit_free;
     int is_mul_unit_free;
     int is_branch_unit_free;
@@ -147,11 +159,18 @@ typedef struct APEX_CPU
     CPU_Stage dr1;
     CPU_Stage r2d;
     CPU_Stage iq_stage;
-    // CPU_Stage execute;
+    
     CPU_Stage intFU;
     CPU_Stage mulFU;
     CPU_Stage branchFU;
+
+    CPU_Stage intFU_fwd_bus;
+    CPU_Stage mulFU_fwd_bus;
+    CPU_Stage branchFU_fwd_bus;
+
     CPU_Stage memory;
+    CPU_Stage memory_fwd_bus;
+
     CPU_Stage writeback;
 } APEX_CPU;
 

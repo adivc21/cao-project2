@@ -84,3 +84,59 @@ void addROBEntry(APEX_CPU *cpu, ROB_Entry rob_entry)
     }
     return;
 }
+
+// Update ROB entries with latest values
+void updateROBEntries(APEX_CPU *cpu, int FU_type)
+{
+    if (isROBEmpty(cpu))
+    {
+        // printf("\nNo entries in ROB.");
+        return;
+    }
+
+    int i;
+
+    if (FU_type == INT_FU)
+    {
+        for(i=cpu->rob_front; i != cpu->rob_rear; i = (i+1)%REORDER_BUFFER_SIZE)
+        {
+            if (cpu->reorder_buffer[i].pc_value == cpu->intFU_fwd_bus.pc)
+            {
+                
+                cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
+                cpu->reorder_buffer[i].res_mem_add_status = VALID;
+            }
+        }
+
+        if (cpu->reorder_buffer[i].pc_value == cpu->intFU_fwd_bus.pc)
+        {
+            cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
+                cpu->reorder_buffer[i].res_mem_add_status = VALID;
+        }
+    }
+    return;    
+}
+
+// Commit the instruction at the head of ROB
+void commitROBHead(APEX_CPU *cpu)
+{
+    if (isROBEmpty(cpu))
+    {
+        return;
+    }
+
+    switch (cpu->reorder_buffer[cpu->rob_front].instr_type)
+    {
+        case R2R:
+            if (cpu->reorder_buffer[cpu->rob_front].res_mem_add_status)
+            {
+                cpu->regs[cpu->reorder_buffer[cpu->rob_front].arch_dest_reg]
+                    = cpu->reorder_buffer[cpu->rob_front].result;
+                cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+            }
+            break;
+        
+        default:
+            break;
+    }
+}

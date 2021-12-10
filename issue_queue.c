@@ -6,7 +6,6 @@
 // Print the Issue Queue details
 void printIssueQueue(APEX_CPU *cpu) 
 {
-
     IQ_Entry *ptr = cpu->iq_head;
     printf("\n\nIssue Queue entries: ");
 
@@ -14,20 +13,23 @@ void printIssueQueue(APEX_CPU *cpu)
     while(ptr != NULL) 
     {
         printf("\nIssue Queue index: %d", entryNo);
-        printf("\nStatus: %d", ptr->status);
-        printf("\nFU type: %d", ptr->FU_type);
-        printf("\nLiteral value: %d", ptr->imm);
-        printf("\nSrc1 ready bit: %d", ptr->src1_ready_bit);
-        printf("\nSrc1 tag: %d", ptr->src1_tag);
-        printf("\nSrc1 value: %d", ptr->src1_value);
-        printf("\nSrc2 ready bit: %d", ptr->src2_ready_bit);
-        printf("\nSrc2 tag: %d", ptr->src2_tag);
-        printf("\nSrc2 value: %d", ptr->src2_value);
-        printf("\nPhy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
+        printf("\n Status: %d", ptr->status);
+        printf("\n FU type: %d", ptr->FU_type);
+        printf("\n Literal value: %d", ptr->imm);
+        printf("\n Src1 ready bit: %d", ptr->src1_ready_bit);
+        printf("\n Src1 tag: %d", ptr->src1_tag);
+        printf("\n Src1 value: %d", ptr->src1_value);
+        printf("\n Src2 ready bit: %d", ptr->src2_ready_bit);
+        printf("\n Src2 tag: %d", ptr->src2_tag);
+        printf("\n Src2 value: %d", ptr->src2_value);
+        printf("\n Phy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
         
         entryNo++;
         ptr = ptr->next;
     }
+
+    printf("\n");
+
 }
 
 
@@ -55,7 +57,7 @@ int addIQEntry(APEX_CPU *cpu, IQ_Entry *iq_entry)
         cpu->iq_head = iq_entry;
         cpu->iq_head->next = NULL;
         cpu->current_iq_size++;
-        
+
         return 0;
     }
 
@@ -73,6 +75,172 @@ int addIQEntry(APEX_CPU *cpu, IQ_Entry *iq_entry)
     return 0;
 }
 
+// Get IntFU instruction ready for execution
+IQ_Entry * getInstructionForIntFU(APEX_CPU *cpu)
+{
+    IQ_Entry *temp, *current, *ret_ptr;
+    current = cpu->iq_head;
+    
+    if (current != NULL 
+            && current->FU_type == INT_FU 
+            && current->src1_ready_bit && current->src2_ready_bit)
+    {
+        ret_ptr = current;
+        // current = current->next;
+        cpu->iq_head = current->next;
+        ret_ptr->next = NULL;
+        // printf("\n Retrieved IQ entry PC value: %d", ret_ptr->pc_value);
+        // printf("\n Status: %d", ptr->status);
+        // printf("\n FU type: %d", ptr->FU_type);
+        // printf("\n Literal value: %d", ptr->imm);
+        // printf("\n Src1 ready bit: %d", ptr->src1_ready_bit);
+        // printf("\n Src1 tag: %d", ptr->src1_tag);
+        // printf("\n Src1 value: %d", ptr->src1_value);
+        // printf("\n Src2 ready bit: %d", ptr->src2_ready_bit);
+        // printf("\n Src2 tag: %d", ptr->src2_tag);
+        // printf("\n Src2 value: %d", ptr->src2_value);
+        // printf("\n Phy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
+        return ret_ptr;
+    }
+    else
+    {
+        // printf("Head ptr is not an INT instruction");
+    }
+
+    while(current != NULL) 
+    {
+        temp = current;
+        current = current->next;
+
+        if (current->FU_type == INT_FU)
+        {
+            if (current->src1_ready_bit && current->src2_ready_bit)
+            {
+                ret_ptr = current;
+                temp->next = current->next;
+                ret_ptr->next = NULL;
+                return ret_ptr;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+// Get MulFU instruction ready for execution
+IQ_Entry * getInstructionForMulFU(APEX_CPU *cpu)
+{
+    IQ_Entry *temp, *current, *ret_ptr;
+    current = cpu->iq_head;
+    if (current != NULL 
+            && current->FU_type == MUL_FU 
+            && current->src1_ready_bit && current->src2_ready_bit)
+    {
+        
+        ret_ptr = current;
+        // current = current->next;
+        cpu->iq_head = current->next;
+        ret_ptr->next = NULL;
+        // printf("\n Retrieved IQ entry PC value: %d", ret_ptr->pc_value);
+        // printf("\n Status: %d", ptr->status);
+        // printf("\n FU type: %d", ptr->FU_type);
+        // printf("\n Literal value: %d", ptr->imm);
+        // printf("\n Src1 ready bit: %d", ptr->src1_ready_bit);
+        // printf("\n Src1 tag: %d", ptr->src1_tag);
+        // printf("\n Src1 value: %d", ptr->src1_value);
+        // printf("\n Src2 ready bit: %d", ptr->src2_ready_bit);
+        // printf("\n Src2 tag: %d", ptr->src2_tag);
+        // printf("\n Src2 value: %d", ptr->src2_value);
+        // printf("\n Phy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
+        return ret_ptr;
+    }
+    else
+    {
+        // printf("Head ptr is not an INT instruction");
+    }
+
+    while(current != NULL) 
+    {
+        temp = current;
+        current = current->next;
+
+        if (current->FU_type == MUL_FU)
+        {
+            if (current->src1_ready_bit && current->src2_ready_bit)
+            {
+                ret_ptr = current;
+                temp->next = current->next;
+                ret_ptr->next = NULL;
+                return ret_ptr;
+            }
+        }
+    }
+
+    
+    return NULL;
+}
+
+
+// Update IQ entries with latest values
+void updateIQEntries(APEX_CPU *cpu, int FU_type)
+{
+    IQ_Entry *current = cpu->iq_head;
+
+    if (FU_type == INT_FU)
+    {
+        while (current != NULL)
+        {
+            switch (current->opcode)
+            {
+                case OPCODE_MOVC:
+                    if (current->src1_tag == cpu->intFU_fwd_bus.pd)
+                    {
+                        current->src1_value = cpu->intFU_fwd_bus.result_buffer;
+                        current->src1_ready_bit = 1;
+                    }
+                    if (current->src2_tag == cpu->intFU_fwd_bus.pd)
+                    {
+                        current->src2_value = cpu->intFU_fwd_bus.result_buffer;
+                        current->src2_ready_bit = 1;
+                    }   
+                    break;
+                
+                default:
+                    break;
+            }
+            current = current->next;
+        }
+    }    
+
+
+    if (FU_type == MUL_FU)
+    {
+        while (current != NULL)
+        {
+            switch (current->opcode)
+            {
+                case OPCODE_MUL:
+                    if (current->src1_tag == cpu->mulFU_fwd_bus.pd)
+                    {
+                        current->src1_value = cpu->mulFU_fwd_bus.result_buffer;
+                        current->src1_ready_bit = 1;
+                    }
+                    if (current->src2_tag == cpu->mulFU_fwd_bus.pd)
+                    {
+                        current->src2_value = cpu->mulFU_fwd_bus.result_buffer;
+                        current->src2_ready_bit = 1;
+                    }   
+                    break;
+                
+                default:
+                    break;
+            }
+            current = current->next;
+        }
+    }
+
+    return;
+}
 
 
 // //insert link at the first location

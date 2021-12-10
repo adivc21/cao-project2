@@ -96,3 +96,9 @@ void printLSQ(APEX_CPU *cpu)
 
     return;
 }
+
+// Update LSQ entries with latest values
+void updateLSQEntries(APEX_CPU *cpu, int FU_type)
+{
+    return;
+}

@@ -8,3 +8,6 @@ int isLSQEmpty(APEX_CPU *cpu);
 
 // Adding freed Physical Register back to the Free List
 void addLSQEntry(APEX_CPU *cpu, LSQ_Entry lsq_entry);
+
+// Update LSQ entries with latest values
+void updateLSQEntries(APEX_CPU *cpu, int FU_type);

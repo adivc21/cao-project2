@@ -50,13 +50,27 @@
 #define MUL_FU 0x1
 #define BRANCH_FU 0x2
 
+/* Numeric FU identifiers for instructions */
+#define INT_FU 0x0
+#define MUL_FU 0x1
+#define BRANCH_FU 0x2
+
+/* Numeric Instruction type identifiers for ROB entries */
+#define R2R 0x0
+#define LOAD 0x1
+#define STORE 0x2
+#define BRANCH 0x3
+
 /* Set this flag to 1 to enable debug messages */
 #define ENABLE_DEBUG_MESSAGES 1
 
 /* Set this flag to 1 to enable cycle single-step mode */
 #define ENABLE_SINGLE_STEP 1
 
-#define FALSE 0x0
-#define TRUE 0x1
+#define INVALID 0x0
+#define VALID 0x1
+
+#define READY 0x0
+#define NOT_READY 0x1
 
 #endif
