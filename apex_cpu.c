@@ -47,6 +47,14 @@ print_instruction(const CPU_Stage *stage)
                 break;
             }
 
+            case OPCODE_ADDL:
+            case OPCODE_SUBL:
+            {
+                printf("%s,R%d,R%d,%d ", stage->opcode_str, stage->rd, stage->rs1,
+                    stage->imm);
+                break;
+            }
+
             case OPCODE_MOVC:
             {
                 printf("%s,R%d,#%d ", stage->opcode_str, stage->rd, stage->imm);
@@ -298,6 +306,29 @@ APEX_dr1(APEX_CPU *cpu)
             //     break;
             // }
 
+            case OPCODE_ADDL:
+            case OPCODE_SUBL:
+            {
+                if(isIQFull(cpu) || isROBFull(cpu))
+                {
+                    cpu->fetch_from_next_cycle = TRUE;
+                    return;
+                }
+                
+                cpu->dr1.ps1=cpu->rename_table[cpu->dr1.rs1];
+
+                int freeReg = getPhysicalRegister(cpu);
+                if (freeReg != -1)
+                {
+                    // cpu->dr1.renamed = 1;
+                    cpu->dr1.pd = freeReg;
+                    cpu->rename_table[cpu->dr1.rd] = cpu->dr1.pd;
+                    // printf("\nFree Physical Register: P%d\n", cpu->dr1.pd);
+                }
+                
+                break;
+            }
+
             case OPCODE_MOVC:
             {
                 if(isIQFull(cpu) || isROBFull(cpu))
@@ -341,6 +372,9 @@ APEX_dr1(APEX_CPU *cpu)
                 
                 break;
             }
+
+            default:
+                break;
         }
 
         // /* Copy data from dr1 latch to execute latch*/
@@ -382,6 +416,56 @@ APEX_r2d(APEX_CPU *cpu)
             //     break;
             // }
 
+
+            case OPCODE_ADDL:
+            case OPCODE_SUBL:
+            {
+                cpu->reg_is_renamed[cpu->r2d.rd] = 1;
+                cpu->r2d.regs_renamed = 1;
+
+                cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
+
+                IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+                // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
+                iq_entry->pc_value = cpu->r2d.pc;
+                iq_entry->status=1;
+                iq_entry->opcode = cpu->r2d.opcode;
+                iq_entry->FU_type = INT_FU;
+                iq_entry->imm = cpu->r2d.imm;
+                
+                // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
+                if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
+                {
+                    cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
+                    iq_entry->src1_ready_bit = READY;
+                    iq_entry->src1_tag = cpu->r2d.ps1;
+                    iq_entry->src1_value = cpu->r2d.ps1_value;
+                }
+                else
+                {
+                    iq_entry->src1_ready_bit = NOT_READY;
+                    iq_entry->src1_tag = cpu->r2d.ps1;
+                }
+
+                iq_entry->src2_ready_bit = READY;
+                
+                iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
+                iq_entry->cpu_stage = cpu->r2d;
+                addIQEntry(cpu, iq_entry);
+
+                ROB_Entry rob_entry;
+                rob_entry.pc_value = cpu->r2d.pc;
+                rob_entry.arch_dest_reg = cpu->r2d.rd;
+                rob_entry.res_mem_add_status = INVALID;
+                rob_entry.instr_type = R2R;
+                addROBEntry(cpu, rob_entry);
+                // printIssueQueue(cpu);
+                // printIssueQueue(cpu);
+                // printROB(cpu);
+
+                break;
+            }
+
             case OPCODE_MOVC:
             {
                 cpu->reg_is_renamed[cpu->r2d.rd] = 1;
@@ -409,11 +493,12 @@ APEX_r2d(APEX_CPU *cpu)
                 rob_entry.instr_type = R2R;
                 addROBEntry(cpu, rob_entry);
 
-                printIssueQueue(cpu);
+                // printIssueQueue(cpu);
                 // printROB(cpu);
 
                 break;
             }
+
             case OPCODE_MUL:
             {
                 cpu->reg_is_renamed[cpu->r2d.rd] = 1;
@@ -429,6 +514,7 @@ APEX_r2d(APEX_CPU *cpu)
                 iq_entry->FU_type = MUL_FU;
                 iq_entry->imm = cpu->r2d.imm;
                 
+                // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
                 if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
                 {
                     cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
@@ -446,7 +532,7 @@ APEX_r2d(APEX_CPU *cpu)
                 {
                     cpu->r2d.ps2_value = cpu->phy_regs[cpu->r2d.ps2];
                     iq_entry->src2_ready_bit = READY;
-                    iq_entry->src2_tag = cpu->r2d.ps1;
+                    iq_entry->src2_tag = cpu->r2d.ps2;
                     iq_entry->src2_value = cpu->r2d.ps2_value;
                 }
                 else
@@ -465,12 +551,15 @@ APEX_r2d(APEX_CPU *cpu)
                 rob_entry.res_mem_add_status = INVALID;
                 rob_entry.instr_type = R2R;
                 addROBEntry(cpu, rob_entry);
-
+                // printIssueQueue(cpu);
                 // printIssueQueue(cpu);
                 // printROB(cpu);
 
                 break;
             }
+
+            default:
+                break;
 
         }
 
@@ -498,9 +587,11 @@ APEX_iq_stage(APEX_CPU *cpu)
     {
         // printf("\nTest line 1\n");
         cpu->intFUInstruction = getInstructionForIntFU(cpu);
+        // printf("\nTest line 1\n");
         // printf("\nIQ stage retrieved instruction PC value: %d", cpu->intFUInstruction->pc_value);
         if (cpu->intFUInstruction != NULL)
         {
+            cpu->current_iq_size--;
             // printf("\nIQ stage retrieved instruction PC value: %d\n", cpu->intFUInstruction->pc_value);
             // printf("\n IQ entry retrieved");
             cpu->intFU.has_insn = TRUE;
@@ -513,12 +604,13 @@ APEX_iq_stage(APEX_CPU *cpu)
 
     if (!cpu->mulFU.has_insn)
     {
-        
+        // printIssueQueue(cpu);
         cpu->mulFUInstruction = getInstructionForMulFU(cpu);
-        printf("\nTest line 1\n");
+        // printf("\nTest line 1\n");
         // printf("\nIQ stage retrieved instruction PC value: %d", cpu->intFUInstruction->pc_value);
         if (cpu->mulFUInstruction != NULL)
         {
+            cpu->current_iq_size--;
             // printf("\nIQ stage retrieved instruction PC value: %d\n", cpu->intFUInstruction->pc_value);
             // printf("\n IQ entry retrieved");
             cpu->mulFU.has_insn = TRUE;
@@ -608,6 +700,17 @@ APEX_intFU(APEX_CPU *cpu)
             //     break;
             // }
 
+            case OPCODE_ADDL: 
+            {
+                cpu->intFU = cpu->intFUInstruction->cpu_stage;
+                cpu->intFU.result_buffer 
+                    = cpu->intFUInstruction->src1_value + cpu->intFUInstruction->imm;
+                cpu->intFU.pd = cpu->intFUInstruction->dest_reg_or_lsq_index;
+                // printf("Dest Phy Reg: P%d\n", cpu->intFU.pd);
+                // printf("Result value: %d\n", cpu->intFU.result_buffer);
+                break;
+            }
+
             case OPCODE_MOVC: 
             {
                 cpu->intFU = cpu->intFUInstruction->cpu_stage;
@@ -648,10 +751,13 @@ APEX_mulFU(APEX_CPU *cpu)
             {
                 if (cpu->mulFUstage != 3)
                 {
+                    printf("cpu->mulFUstage != 3");
                     cpu->mulFUstage++;
+                    return;
                 }
                 else
                 {
+                    printf("cpu->mulFUstage == 3");
                     cpu->mulFU = cpu->mulFUInstruction->cpu_stage;
                     cpu->mulFU.result_buffer 
                         = cpu->mulFUInstruction->src1_value * cpu->mulFUInstruction->src2_value;
@@ -669,7 +775,7 @@ APEX_mulFU(APEX_CPU *cpu)
         }
         // printf("Does INTFU have an instruction: %d\n", cpu->intFU.has_insn);
         /* Copy data from execute latch to intFU latch*/
-        cpu->mulFU_fwd_bus = cpu->intFU;
+        cpu->mulFU_fwd_bus = cpu->mulFU;
         cpu->mulFU.has_insn = FALSE;
 
         if (ENABLE_DEBUG_MESSAGES)
@@ -727,23 +833,28 @@ APEX_mulFU_fwd_bus(APEX_CPU *cpu)
         // printf("\nINT FWD bus pc value: %d\n", cpu->intFU_fwd_bus.pc);
         updateIQEntries(cpu, MUL_FU);
         updateROBEntries(cpu, MUL_FU);
-        updateLSQEntries(cpu, MUL_FU);
+        
+        // printROB(cpu);
+        // updateLSQEntries(cpu, MUL_FU);
+
         // printf("Dest Phy Reg in forward: P%d = %d\n", cpu->intFU_fwd_bus.pd, cpu->phy_regs[cpu->intFU_fwd_bus.pd]);
         // printIssueQueue(cpu);
         // printROB(cpu);
         //printf("Result value: %d\n", cpu->intFU.result_buffer);
+
+        /* Copy data from execute latch to intFU latch*/
+        // cpu->intFU = cpu->iq_stage;
+        cpu->mulFU_fwd_bus.has_insn = FALSE;
+
+        if (ENABLE_DEBUG_MESSAGES)
+        {
+            // print_stage_content("Integer FU", &cpu->intFU);
+            printf("\nMulFU FWD bus: P%d = %d\n", 
+                cpu->mulFU_fwd_bus.pd, cpu->mulFU_fwd_bus.result_buffer);
+        }
     }
 
-    /* Copy data from execute latch to intFU latch*/
-    // cpu->intFU = cpu->iq_stage;
-    cpu->mulFU_fwd_bus.has_insn = FALSE;
 
-    if (ENABLE_DEBUG_MESSAGES)
-    {
-        // print_stage_content("Integer FU", &cpu->intFU);
-        printf("\nMulFU FWD bus: P%d = %d\n", 
-            cpu->mulFU_fwd_bus.pd, cpu->mulFU_fwd_bus.result_buffer);
-    }
 }
 
 
@@ -950,8 +1061,13 @@ APEX_cpu_run(APEX_CPU *cpu)
 
         APEX_ROB_retirement(cpu);
         // // APEX_memory(cpu);
+
+        APEX_mulFU_fwd_bus(cpu);
         APEX_intFU_fwd_bus(cpu);
+
+        APEX_mulFU(cpu);
         APEX_intFU(cpu);
+        
         APEX_iq_stage(cpu);
         APEX_r2d(cpu);
         // APEX_execute(cpu);

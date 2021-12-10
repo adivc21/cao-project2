@@ -78,13 +78,15 @@ int addIQEntry(APEX_CPU *cpu, IQ_Entry *iq_entry)
 // Get IntFU instruction ready for execution
 IQ_Entry * getInstructionForIntFU(APEX_CPU *cpu)
 {
+    // printf("\nTest line 1\n");
     IQ_Entry *temp, *current, *ret_ptr;
     current = cpu->iq_head;
-    
+    // printf("\nTest line 1\n");
     if (current != NULL 
             && current->FU_type == INT_FU 
             && current->src1_ready_bit && current->src2_ready_bit)
     {
+        // printf("\nTest line 1\n");
         ret_ptr = current;
         // current = current->next;
         cpu->iq_head = current->next;
@@ -109,21 +111,30 @@ IQ_Entry * getInstructionForIntFU(APEX_CPU *cpu)
 
     while(current != NULL) 
     {
+        // printf("\nTest line 1\n");
         temp = current;
         current = current->next;
 
+        // printf("\nTest line 1\n");
+        // printf("\nCurrent FU type: %d\n", current->FU_type);
+        if (current == NULL)
+        {
+            return NULL;
+        }
         if (current->FU_type == INT_FU)
         {
+            // printf("\nTest line 1\n");
             if (current->src1_ready_bit && current->src2_ready_bit)
             {
                 ret_ptr = current;
                 temp->next = current->next;
                 ret_ptr->next = NULL;
+                
                 return ret_ptr;
             }
         }
     }
-
+    // printf("\nTest line 1\n");
     return NULL;
 }
 
@@ -163,6 +174,10 @@ IQ_Entry * getInstructionForMulFU(APEX_CPU *cpu)
     {
         temp = current;
         current = current->next;
+        if (current == NULL)
+        {
+            return NULL;
+        }
 
         if (current->FU_type == MUL_FU)
         {

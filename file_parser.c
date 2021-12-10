@@ -49,9 +49,19 @@ set_opcode_str(const char *opcode_str)
         return OPCODE_ADD;
     }
 
+    if (strcmp(opcode_str, "ADDL") == 0)
+    {
+        return OPCODE_ADDL;
+    }
+
     if (strcmp(opcode_str, "SUB") == 0)
     {
         return OPCODE_SUB;
+    }
+
+    if (strcmp(opcode_str, "SUBL") == 0)
+    {
+        return OPCODE_SUBL;
     }
 
     if (strcmp(opcode_str, "MUL") == 0)
@@ -172,6 +182,15 @@ create_APEX_instruction(APEX_Instruction *ins, char *buffer)
             ins->rd = get_num_from_string(tokens[0]);
             ins->rs1 = get_num_from_string(tokens[1]);
             ins->rs2 = get_num_from_string(tokens[2]);
+            break;
+        }
+
+        case OPCODE_ADDL:
+        case OPCODE_SUBL:
+        {
+            ins->rd = get_num_from_string(tokens[0]);
+            ins->rs1 = get_num_from_string(tokens[1]);
+            ins->imm = get_num_from_string(tokens[2]);
             break;
         }
 

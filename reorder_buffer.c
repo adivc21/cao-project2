@@ -101,8 +101,7 @@ void updateROBEntries(APEX_CPU *cpu, int FU_type)
         for(i=cpu->rob_front; i != cpu->rob_rear; i = (i+1)%REORDER_BUFFER_SIZE)
         {
             if (cpu->reorder_buffer[i].pc_value == cpu->intFU_fwd_bus.pc)
-            {
-                
+            {    
                 cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
                 cpu->reorder_buffer[i].res_mem_add_status = VALID;
             }
@@ -111,7 +110,25 @@ void updateROBEntries(APEX_CPU *cpu, int FU_type)
         if (cpu->reorder_buffer[i].pc_value == cpu->intFU_fwd_bus.pc)
         {
             cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
+            cpu->reorder_buffer[i].res_mem_add_status = VALID;
+        }
+    }
+
+    if (FU_type == MUL_FU)
+    {
+        for(i=cpu->rob_front; i != cpu->rob_rear; i = (i+1)%REORDER_BUFFER_SIZE)
+        {
+            if (cpu->reorder_buffer[i].pc_value == cpu->mulFU_fwd_bus.pc)
+            {    
+                cpu->reorder_buffer[i].result = cpu->mulFU_fwd_bus.result_buffer;
                 cpu->reorder_buffer[i].res_mem_add_status = VALID;
+            }
+        }
+
+        if (cpu->reorder_buffer[i].pc_value == cpu->mulFU_fwd_bus.pc)
+        {
+            cpu->reorder_buffer[i].result = cpu->mulFU_fwd_bus.result_buffer;
+            cpu->reorder_buffer[i].res_mem_add_status = VALID;
         }
     }
     return;    

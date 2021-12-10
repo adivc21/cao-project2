@@ -44,6 +44,15 @@
 #define OPCODE_BZ 0xa
 #define OPCODE_BNZ 0xb
 #define OPCODE_HALT 0xc
+#define OPCODE_ADDL     0xd
+#define OPCODE_SUBL     0xe
+#define OPCODE_BP       0xf
+#define OPCODE_BNP      0x10
+#define OPCODE_LDI      0x11
+#define OPCODE_STI      0x12
+#define OPCODE_NOP      0x13
+#define OPCODE_CMP      0x14
+#define OPCODE_JUMP     0x15
 
 /* Numeric FU identifiers for instructions */
 #define INT_FU 0x0
@@ -70,7 +79,7 @@
 #define INVALID 0x0
 #define VALID 0x1
 
-#define READY 0x0
-#define NOT_READY 0x1
+#define NOT_READY 0x0
+#define READY 0x1
 
 #endif
