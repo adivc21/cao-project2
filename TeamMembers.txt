@@ -1,0 +1,18 @@
+Team members:
+
+Aditya Chendwankar
+Shivam Dubey
+Rajat Barot
+
+
+Instructions implemented:
+ADD
+SUB
+MUL
+AND
+OR
+EXOR
+MOVC
+HALT
+ADDL
+SUBL

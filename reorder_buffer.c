@@ -98,19 +98,62 @@ void updateROBEntries(APEX_CPU *cpu, int FU_type)
 
     if (FU_type == INT_FU)
     {
+        // switch (cpu->intFU_fwd_bus.opcode)
+        // {
+        // case /* constant-expression */:
+        //     /* code */
+        //     break;
+        
+        // default:
+        //     break;
+        // }
         for(i=cpu->rob_front; i != cpu->rob_rear; i = (i+1)%REORDER_BUFFER_SIZE)
         {
             if (cpu->reorder_buffer[i].pc_value == cpu->intFU_fwd_bus.pc)
-            {    
-                cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
-                cpu->reorder_buffer[i].res_mem_add_status = VALID;
+            {
+                switch (cpu->reorder_buffer[i].instr_type)
+                {
+                case R2R:
+                    cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
+                    cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                    break;
+
+                case LOAD:
+                    cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
+                    cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                    break;    
+
+                case STORE:
+                    cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                
+                default:
+                    break;
+                }    
+
             }
         }
 
         if (cpu->reorder_buffer[i].pc_value == cpu->intFU_fwd_bus.pc)
         {
-            cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
-            cpu->reorder_buffer[i].res_mem_add_status = VALID;
+            switch (cpu->reorder_buffer[i].instr_type)
+            {
+            case R2R:
+                cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
+                cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                break;
+
+            case LOAD:
+                cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
+                cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                break; 
+
+            case STORE:
+                cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                
+            default:
+                break;
+            }    
+
         }
     }
 
@@ -135,11 +178,11 @@ void updateROBEntries(APEX_CPU *cpu, int FU_type)
 }
 
 // Commit the instruction at the head of ROB
-void commitROBHead(APEX_CPU *cpu)
+int commitROBHead(APEX_CPU *cpu)
 {
     if (isROBEmpty(cpu))
     {
-        return;
+        return 0;
     }
 
     switch (cpu->reorder_buffer[cpu->rob_front].instr_type)
@@ -150,10 +193,40 @@ void commitROBHead(APEX_CPU *cpu)
                 cpu->regs[cpu->reorder_buffer[cpu->rob_front].arch_dest_reg]
                     = cpu->reorder_buffer[cpu->rob_front].result;
                 cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+                cpu->insn_completed++;
+                return 0;
             }
             break;
         
+        case LOAD:
+            if (cpu->reorder_buffer[cpu->rob_front].res_mem_add_status)
+            {
+                cpu->regs[cpu->reorder_buffer[cpu->rob_front].arch_dest_reg]
+                    = cpu->reorder_buffer[cpu->rob_front].result;
+                cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+                cpu->insn_completed++;
+                return 0;
+            }
+            break;
+
+        case STORE:
+            if (cpu->reorder_buffer[cpu->rob_front].res_mem_add_status)
+            {
+                // cpu->regs[cpu->reorder_buffer[cpu->rob_front].arch_dest_reg]
+                //     = cpu->reorder_buffer[cpu->rob_front].result;
+                cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+                cpu->insn_completed++;
+                return 0;
+            }
+            break;
+
+        case HALT:
+            cpu->insn_completed++;
+            return 1;
+
         default:
             break;
     }
+
+    return 0;
 }

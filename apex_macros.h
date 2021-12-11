@@ -53,11 +53,7 @@
 #define OPCODE_NOP      0x13
 #define OPCODE_CMP      0x14
 #define OPCODE_JUMP     0x15
-
-/* Numeric FU identifiers for instructions */
-#define INT_FU 0x0
-#define MUL_FU 0x1
-#define BRANCH_FU 0x2
+#define OPCODE_JALR     0x15
 
 /* Numeric FU identifiers for instructions */
 #define INT_FU 0x0
@@ -69,6 +65,7 @@
 #define LOAD 0x1
 #define STORE 0x2
 #define BRANCH 0x3
+#define HALT 0x4
 
 /* Set this flag to 1 to enable debug messages */
 #define ENABLE_DEBUG_MESSAGES 1

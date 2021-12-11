@@ -146,6 +146,7 @@ typedef struct APEX_CPU
     IQ_Entry *branchFUInstruction;
 
     int mulFUstage;
+    int memorystage;
 
     int is_int_unit_free;
     int is_mul_unit_free;

@@ -15,5 +15,8 @@ IQ_Entry * getInstructionForIntFU(APEX_CPU *cpu);
 // Get MulFU instruction ready for execution
 IQ_Entry * getInstructionForMulFU(APEX_CPU *cpu);
 
+// Get BranchFU instruction ready for execution
+IQ_Entry * getInstructionForBranchFU(APEX_CPU *cpu);
+
 // Update IQ entries with latest values
 void updateIQEntries(APEX_CPU *cpu, int FU_type);

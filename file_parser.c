@@ -114,6 +114,11 @@ set_opcode_str(const char *opcode_str)
         return OPCODE_BNZ;
     }
 
+    if (strcmp(opcode_str, "JALR") == 0)
+    {
+        return OPCODE_JALR;
+    }
+
     if (strcmp(opcode_str, "HALT") == 0)
     {
         return OPCODE_HALT;
@@ -187,6 +192,7 @@ create_APEX_instruction(APEX_Instruction *ins, char *buffer)
 
         case OPCODE_ADDL:
         case OPCODE_SUBL:
+        case OPCODE_JALR:
         {
             ins->rd = get_num_from_string(tokens[0]);
             ins->rs1 = get_num_from_string(tokens[1]);

@@ -16,4 +16,4 @@ void addROBEntry(APEX_CPU *cpu, ROB_Entry rob_entry);
 void updateROBEntries(APEX_CPU *cpu, int FU_type);
 
 // Commit the instruction at the head of ROB
-void commitROBHead(APEX_CPU *cpu);
+int commitROBHead(APEX_CPU *cpu);
