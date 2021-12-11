@@ -87,8 +87,8 @@ void printFreeList(APEX_CPU *cpu)
     }
 
     int i;
-
-    printf("\nRegisters in the Free List: [");
+    printf("----------\n%s\n----------\n", "Registers in the Free List: ");
+    printf("[");
     for(i=cpu->free_list_front; i != cpu->free_list_rear; i = (i+1)%PHY_REG_FILE_SIZE)
     {
         printf("P%d, ", cpu->free_list[i]);

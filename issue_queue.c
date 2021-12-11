@@ -7,28 +7,54 @@
 void printIssueQueue(APEX_CPU *cpu) 
 {
     IQ_Entry *ptr = cpu->iq_head;
-    printf("\n\nIssue Queue entries: ");
+    // printf("\n\nIssue Queue entries: ");
+    printf("----------\n%s\n----------\n", "Issue Queue entries: ");
+
+    if (ptr == NULL)
+    {
+        printf("Issue Queue is empty.\n");
+    }
 
     int entryNo = 0;
     while(ptr != NULL) 
     {
-        printf("\nIssue Queue index: %d", entryNo);
-        printf("\n Status: %d", ptr->status);
-        printf("\n FU type: %d", ptr->FU_type);
-        printf("\n Literal value: %d", ptr->imm);
-        printf("\n Src1 ready bit: %d", ptr->src1_ready_bit);
-        printf("\n Src1 tag: %d", ptr->src1_tag);
-        printf("\n Src1 value: %d", ptr->src1_value);
-        printf("\n Src2 ready bit: %d", ptr->src2_ready_bit);
-        printf("\n Src2 tag: %d", ptr->src2_tag);
-        printf("\n Src2 value: %d", ptr->src2_value);
-        printf("\n Phy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
+        printf("Index: %d | Opcode: %d | FU_type: %d | Literal: %d | ",
+                entryNo, ptr->opcode, ptr->FU_type, ptr->imm);
+        printf("Src1 Ready: %d | Src1 tag: P%d | Src1 value: %d | ",
+                ptr->src1_ready_bit, ptr->src1_tag, ptr->src1_value);
+        printf("Src2 Ready: %d | Src2 tag: P%d | Src2 value: %d | ",
+                ptr->src2_ready_bit, ptr->src2_tag, ptr->src2_value);
+        printf("Dest: %d\n", ptr->dest_reg_or_lsq_index);
+
+    //         int status;
+    // int opcode;
+    // int FU_type;
+    // int imm;
+    // int src1_ready_bit;
+    // int src1_tag;
+    // int src1_value;
+    // int src2_ready_bit;
+    // int src2_tag;
+    // int src2_value;
+    // int dest_reg_or_lsq_index;
+
+    //     printf("\nIssue Queue index: %d", entryNo);
+    //     printf("\n Status: %d", ptr->status);
+    //     printf("\n FU type: %d", ptr->FU_type);
+    //     printf("\n Literal value: %d", ptr->imm);
+    //     printf("\n Src1 ready bit: %d", ptr->src1_ready_bit);
+    //     printf("\n Src1 tag: %d", ptr->src1_tag);
+    //     printf("\n Src1 value: %d", ptr->src1_value);
+    //     printf("\n Src2 ready bit: %d", ptr->src2_ready_bit);
+    //     printf("\n Src2 tag: %d", ptr->src2_tag);
+    //     printf("\n Src2 value: %d", ptr->src2_value);
+    //     printf("\n Phy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
         
         entryNo++;
         ptr = ptr->next;
     }
 
-    printf("\n");
+    // printf("\n");
 
 }
 
@@ -241,21 +267,21 @@ void updateIQEntries(APEX_CPU *cpu, int FU_type)
         {
             switch (current->opcode)
             {
-                case OPCODE_MOVC:
-                    if (current->src1_tag == cpu->intFU_fwd_bus.pd)
-                    {
-                        current->src1_value = cpu->intFU_fwd_bus.result_buffer;
-                        current->src1_ready_bit = 1;
-                    }
-                    if (current->src2_tag == cpu->intFU_fwd_bus.pd)
-                    {
-                        current->src2_value = cpu->intFU_fwd_bus.result_buffer;
-                        current->src2_ready_bit = 1;
-                    }   
-                    break;
-                
-                default:
-                    break;
+            case OPCODE_MOVC:
+                if (current->src1_tag == cpu->intFU_fwd_bus.pd)
+                {
+                    current->src1_value = cpu->intFU_fwd_bus.result_buffer;
+                    current->src1_ready_bit = 1;
+                }
+                if (current->src2_tag == cpu->intFU_fwd_bus.pd)
+                {
+                    current->src2_value = cpu->intFU_fwd_bus.result_buffer;
+                    current->src2_ready_bit = 1;
+                }   
+                break;
+            
+            default:
+                break;
             }
             current = current->next;
         }

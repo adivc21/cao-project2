@@ -76,23 +76,52 @@ void addLSQEntry(APEX_CPU *cpu, LSQ_Entry lsq_entry)
 //     }
 // }
 
-// Print the Physical Registers available in the Free List
+// Print the LSQ entries
 void printLSQ(APEX_CPU *cpu)
 {
+    printf("----------\n%s\n----------\n", "Load Store Queue entries: ");
+
     if (isLSQEmpty(cpu))
     {
-        printf("\nNo Physical Register is available.");
+        printf("LSQ is empty.\n");
         return;
     }
 
-    // int i;
+    int i;
+    // int entryNo = 0;
 
-    // printf("\nRegisters in the Free List: [");
-    // for(i=cpu->lsq_front; i != cpu->lsq_rear; i = (i+1)%LOAD_STORE_QUEUE_SIZE)
-    // {
-    //     printf("P%d, ", cpu->load_store_queue[i]);
-    // }
-    // printf("P%d]\n", cpu->load_store_queue[i]);
+    for(i=cpu->lsq_front; i != cpu->lsq_rear; i = (i+1)%REORDER_BUFFER_SIZE)
+    {
+        printf("Index: %d | Status: %d | Load or Store: %d | ",
+                i, cpu->load_store_queue[i].status, cpu->load_store_queue[i].load_or_store);
+        printf("Mem addr valid: %d | Mem addr: %d | Dest for Load: P%d | ",
+                cpu->load_store_queue[i].mem_add_is_valid, 
+                cpu->load_store_queue[i].mem_add, 
+                cpu->load_store_queue[i].dest_reg_for_load);
+        printf("Src1 ready: %d | Src1 tag: P%d | Src1 value: %d \n",
+                cpu->load_store_queue[i].src1_ready_bit, 
+                cpu->load_store_queue[i].src1_tag, 
+                cpu->load_store_queue[i].src1_value);
+
+        // int status;
+        // int load_or_store;
+        // int mem_add_is_valid;
+        // int mem_add;
+        // int dest_reg_for_load;
+        // int src1_ready_bit;
+        // int src1_tag;
+        // int src1_value;
+    }
+    printf("Index: %d | Status: %d | Load or Store: %d | ",
+            i, cpu->load_store_queue[i].status, cpu->load_store_queue[i].load_or_store);
+    printf("Mem addr valid: %d | Mem addr: %d | Dest for Load: P%d | ",
+            cpu->load_store_queue[i].mem_add_is_valid, 
+            cpu->load_store_queue[i].mem_add, 
+            cpu->load_store_queue[i].dest_reg_for_load);
+    printf("Src1 ready: %d | Src1 tag: P%d | Src1 value: %d | \n",
+            cpu->load_store_queue[i].src1_ready_bit, 
+            cpu->load_store_queue[i].src1_tag, 
+            cpu->load_store_queue[i].src1_value);
 
     return;
 }
@@ -100,5 +129,110 @@ void printLSQ(APEX_CPU *cpu)
 // Update LSQ entries with latest values
 void updateLSQEntries(APEX_CPU *cpu, int FU_type)
 {
+    if (isLSQEmpty(cpu))
+    {
+        // printf("\nNo entries in ROB.");
+        return;
+    }
+
+    int i;
+
+    if (FU_type == INT_FU)
+    {
+        for(i=cpu->lsq_front; i != cpu->lsq_rear; i = (i+1)%REORDER_BUFFER_SIZE)
+        {
+            if (cpu->load_store_queue[i].pc_value == cpu->intFU_fwd_bus.pc)
+            {
+                switch (cpu->load_store_queue[i].load_or_store)
+                {
+                case LOAD:
+                    // cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
+                    // cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                    break;
+
+                case STORE:
+                    if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                    {
+                        cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                        cpu->load_store_queue[i].src1_ready_bit = READY;
+                    }
+                    cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+                    cpu->load_store_queue[i].mem_add_is_valid = VALID;
+                
+                default:
+                    break;
+                }    
+            }
+        }
+
+        if (cpu->load_store_queue[i].pc_value == cpu->intFU_fwd_bus.pc)
+        {
+            switch (cpu->load_store_queue[i].load_or_store)
+            {
+            case LOAD:
+                // cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
+                // cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                break;
+
+            case STORE:
+                if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                {
+                    cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                    cpu->load_store_queue[i].src1_ready_bit = READY;
+                }
+                cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+                cpu->load_store_queue[i].mem_add_is_valid = VALID;
+            
+            default:
+                break;
+            }    
+        }
+    }
+
     return;
+}
+
+
+// Fetch instruction for memory operation
+LSQ_Entry getInstructionForMemory(APEX_CPU *cpu)
+{
+    LSQ_Entry load_or_store;
+    load_or_store.status = 0;
+    // cpu->phy_reg_to_be_freed = -1;
+    if (isLSQEmpty(cpu))
+    {
+        return load_or_store;
+    }
+
+    switch (cpu->load_store_queue[cpu->lsq_front].load_or_store)
+    {
+        case LOAD:
+            // if (cpu->reorder_buffer[cpu->rob_front].res_mem_add_status)
+            // {
+            //     cpu->regs[cpu->reorder_buffer[cpu->rob_front].arch_dest_reg]
+            //         = cpu->reorder_buffer[cpu->rob_front].result;
+            //     cpu->phy_reg_to_be_freed = cpu->reorder_buffer[cpu->rob_front].cpu_stage.pd;                    
+            //     cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+            //     return 0;
+            // }
+            break;
+
+        case STORE:
+            if (cpu->reorder_buffer[cpu->rob_front].instr_type == STORE)
+            {
+                if (cpu->load_store_queue[cpu->lsq_front].mem_add_is_valid
+                    && cpu->load_store_queue[cpu->lsq_front].src1_ready_bit)
+                {
+                    load_or_store = cpu->load_store_queue[cpu->lsq_front];
+                    cpu->lsq_front = (cpu->lsq_front + 1) % LOAD_STORE_QUEUE_SIZE;
+                    return load_or_store;                    
+                }
+            }
+            break;
+
+        default:
+            break;
+    }
+
+    return load_or_store;
 }

@@ -59,6 +59,7 @@
 #define INT_FU 0x0
 #define MUL_FU 0x1
 #define BRANCH_FU 0x2
+#define MEMORY 0x3
 
 /* Numeric Instruction type identifiers for ROB entries */
 #define R2R 0x0

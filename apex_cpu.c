@@ -225,15 +225,49 @@ print_rename_table(const APEX_CPU *cpu)
 {
     printf("----------\n%s\n----------\n", "Rename Table:");
 
-    for (int i = 0; i < REG_FILE_SIZE; ++i)
+        int i;
+
+    for (int i = 0; i < REG_FILE_SIZE / 2; ++i)
     {
         if (cpu->reg_is_renamed[i])
         {
-            printf("R%-3d -> P%-3d ", i, cpu->rename_table[i]);
+            printf("R%-3d[P%-3d] ", i, cpu->rename_table[i]);
         }
     }
 
     printf("\n");
+
+    for (i = (REG_FILE_SIZE / 2); i < REG_FILE_SIZE; ++i)
+    {
+        if (cpu->reg_is_renamed[i])
+        {
+            printf("R%-3d[P%-3d] ", i, cpu->rename_table[i]);
+        }
+    }
+
+    printf("\n");
+}
+
+
+/* Debug function which prints the memory data
+ */
+static void
+print_data_mem(const APEX_CPU *cpu)
+{
+    int i = 0;
+
+    printf("----------\n%s\n----------\n", "Data Memory:");
+
+    for (i = 0; i < DATA_MEMORY_SIZE; i+=4)
+    {
+        if (cpu->data_memory[i]!=0)
+        {
+            printf("MEM[%-4d]  |  Data Value = [%-4d]\n", i, cpu->data_memory[i]);
+        }
+    }
+    printf("Note: Data Memory locations having the value zero are not printed");   
+    //     printf("----------\n%s\n----------\n", 
+        // "Note: Data Memory locations having the value zero are not printed");    
 
 }
 
@@ -427,7 +461,7 @@ APEX_dr1(APEX_CPU *cpu)
 
         if (ENABLE_DEBUG_MESSAGES)
         {
-            print_stage_content("DR1/RF", &cpu->dr1);
+            print_stage_content("Decode/Rename 1", &cpu->dr1);
         }
     }
 }
@@ -453,11 +487,13 @@ APEX_r2d(APEX_CPU *cpu)
             cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
         
             LSQ_Entry lsq_entry;
+            lsq_entry.pc_value = cpu->r2d.pc;
             lsq_entry.status=1;
             lsq_entry.load_or_store= LOAD;
             lsq_entry.mem_add_is_valid = INVALID;
             // lsq_entry.mem_add = cpu->r2d.mem_add;
             lsq_entry.dest_reg_for_load = cpu->r2d.pd;
+            lsq_entry.cpu_stage = cpu->r2d;
             addLSQEntry(cpu, lsq_entry);
             
         
@@ -496,6 +532,7 @@ APEX_r2d(APEX_CPU *cpu)
             rob_entry.arch_dest_reg = cpu->r2d.rd;
             rob_entry.res_mem_add_status = INVALID;
             rob_entry.instr_type = LOAD;
+            rob_entry.cpu_stage = cpu->r2d;
             addROBEntry(cpu, rob_entry);
             // printIssueQueue(cpu);
             // printIssueQueue(cpu);
@@ -504,364 +541,355 @@ APEX_r2d(APEX_CPU *cpu)
             break;
         }
 
-            case OPCODE_STORE:
+        case OPCODE_STORE:
+        {
+            //cpu->reg_is_renamed[cpu->r2d.rd] = 1;
+            //cpu->r2d.regs_renamed = 1;
+
+            //cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
+        
+            LSQ_Entry lsq_entry;
+            lsq_entry.pc_value = cpu->r2d.pc;
+            lsq_entry.status=1;
+            lsq_entry.load_or_store= STORE;
+            lsq_entry.mem_add_is_valid = INVALID;
+            // lsq_entry.mem_add = cpu->r2d.memory_address;
+            //lsq_entry.dest_reg_for_load = cpu->r2d.pd;
+            if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
             {
-                //cpu->reg_is_renamed[cpu->r2d.rd] = 1;
-                //cpu->r2d.regs_renamed = 1;
-
-                //cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
-		 
-		        LSQ_Entry lsq_entry;
-                lsq_entry.status=1;
-                lsq_entry.load_or_store= STORE;
-                lsq_entry.mem_add_is_valid = INVALID;
-                // lsq_entry.mem_add = cpu->r2d.memory_address;
-                //lsq_entry.dest_reg_for_load = cpu->r2d.pd;
-                if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
-                {
-                    cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
-                    lsq_entry.src1_ready_bit = READY;
-                    lsq_entry.src1_tag = cpu->r2d.ps1;
-                    lsq_entry.src1_value = cpu->r2d.ps1_value;
-                }
-                else
-                {
-                    lsq_entry.src1_ready_bit = NOT_READY;
-                    lsq_entry.src1_tag = cpu->r2d.ps1;
-                }
-                addLSQEntry(cpu, lsq_entry);
-                
-		 
-		 
-		 
-                IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
-                // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
-                iq_entry->pc_value = cpu->r2d.pc;
-                iq_entry->status=1;
-                iq_entry->opcode = cpu->r2d.opcode;
-                iq_entry->FU_type = INT_FU;
-                iq_entry->imm = cpu->r2d.imm;
-                
-                // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
-                if (cpu->is_phy_reg_valid[cpu->r2d.ps2])
-                {
-                    cpu->r2d.ps2_value = cpu->phy_regs[cpu->r2d.ps2];
-                    iq_entry->src2_ready_bit = READY;
-                    iq_entry->src2_tag = cpu->r2d.ps2;
-                    iq_entry->src2_value = cpu->r2d.ps2_value;
-                }
-                else
-                {
-                    iq_entry->src2_ready_bit = NOT_READY;
-                    iq_entry->src2_tag = cpu->r2d.ps2;
-                }
-
-                iq_entry->src1_ready_bit = READY;
-                
-                iq_entry->dest_reg_or_lsq_index = cpu->lsq_rear;
-                iq_entry->cpu_stage = cpu->r2d;
-                addIQEntry(cpu, iq_entry);
-
-                ROB_Entry rob_entry;
-                rob_entry.pc_value = cpu->r2d.pc;
-                rob_entry.arch_dest_reg = cpu->r2d.rd;
-                rob_entry.res_mem_add_status = INVALID;
-                rob_entry.instr_type = STORE;
-                addROBEntry(cpu, rob_entry);
-                // printIssueQueue(cpu);
-                // printIssueQueue(cpu);
-                // printROB(cpu);
-
-                break;
+                cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
+                lsq_entry.src1_ready_bit = READY;
+                lsq_entry.src1_tag = cpu->r2d.ps1;
+                lsq_entry.src1_value = cpu->r2d.ps1_value;
+            }
+            else
+            {
+                lsq_entry.src1_ready_bit = NOT_READY;
+                lsq_entry.src1_tag = cpu->r2d.ps1;
+            }
+            lsq_entry.cpu_stage = cpu->r2d;
+            addLSQEntry(cpu, lsq_entry);
+            
+        
+        
+        
+            IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+            // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
+            iq_entry->pc_value = cpu->r2d.pc;
+            iq_entry->status=1;
+            iq_entry->opcode = cpu->r2d.opcode;
+            iq_entry->FU_type = INT_FU;
+            iq_entry->imm = cpu->r2d.imm;
+            
+            // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
+            if (cpu->is_phy_reg_valid[cpu->r2d.ps2])
+            {
+                cpu->r2d.ps2_value = cpu->phy_regs[cpu->r2d.ps2];
+                iq_entry->src2_ready_bit = READY;
+                iq_entry->src2_tag = cpu->r2d.ps2;
+                iq_entry->src2_value = cpu->r2d.ps2_value;
+            }
+            else
+            {
+                iq_entry->src2_ready_bit = NOT_READY;
+                iq_entry->src2_tag = cpu->r2d.ps2;
             }
 
-            case OPCODE_ADD:
-            case OPCODE_SUB:
-            case OPCODE_AND:
-            case OPCODE_OR:
-            case OPCODE_XOR:
+            iq_entry->src1_ready_bit = READY;
+            
+            iq_entry->dest_reg_or_lsq_index = cpu->lsq_rear;
+            iq_entry->cpu_stage = cpu->r2d;
+            addIQEntry(cpu, iq_entry);
+
+            ROB_Entry rob_entry;
+            rob_entry.pc_value = cpu->r2d.pc;
+            rob_entry.arch_dest_reg = cpu->r2d.rd;
+            rob_entry.res_mem_add_status = INVALID;
+            rob_entry.instr_type = STORE;
+            rob_entry.cpu_stage = cpu->r2d;
+            addROBEntry(cpu, rob_entry);
+            // printIssueQueue(cpu);
+            // printIssueQueue(cpu);
+            // printROB(cpu);
+
+            break;
+        }
+
+        case OPCODE_ADD:
+        case OPCODE_SUB:
+        case OPCODE_AND:
+        case OPCODE_OR:
+        case OPCODE_XOR:
+        {
+            cpu->reg_is_renamed[cpu->r2d.rd] = 1;
+            cpu->r2d.regs_renamed = 1;
+
+            cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
+
+            IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+            // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
+            iq_entry->pc_value = cpu->r2d.pc;
+            iq_entry->status=1;
+            iq_entry->opcode = cpu->r2d.opcode;
+            iq_entry->FU_type = INT_FU;
+            iq_entry->imm = cpu->r2d.imm;
+            
+            // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
+            if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
             {
-                cpu->reg_is_renamed[cpu->r2d.rd] = 1;
-                cpu->r2d.regs_renamed = 1;
+                cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
+                iq_entry->src1_ready_bit = READY;
+                iq_entry->src1_tag = cpu->r2d.ps1;
+                iq_entry->src1_value = cpu->r2d.ps1_value;
+            }
+            else
+            {
+                iq_entry->src1_ready_bit = NOT_READY;
+                iq_entry->src1_tag = cpu->r2d.ps1;
+            }
 
-                cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
-
-                IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
-                // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
-                iq_entry->pc_value = cpu->r2d.pc;
-                iq_entry->status=1;
-                iq_entry->opcode = cpu->r2d.opcode;
-                iq_entry->FU_type = INT_FU;
-                iq_entry->imm = cpu->r2d.imm;
-                
-                // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
-                if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
-                {
-                    cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
-                    iq_entry->src1_ready_bit = READY;
-                    iq_entry->src1_tag = cpu->r2d.ps1;
-                    iq_entry->src1_value = cpu->r2d.ps1_value;
-                }
-                else
-                {
-                    iq_entry->src1_ready_bit = NOT_READY;
-                    iq_entry->src1_tag = cpu->r2d.ps1;
-                }
-
-                if (cpu->is_phy_reg_valid[cpu->r2d.ps2])
-                {
-                    cpu->r2d.ps2_value = cpu->phy_regs[cpu->r2d.ps2];
-                    iq_entry->src2_ready_bit = READY;
-                    iq_entry->src2_tag = cpu->r2d.ps2;
-                    iq_entry->src2_value = cpu->r2d.ps2_value;
-                }
-                else
-                {
-                    iq_entry->src2_ready_bit = NOT_READY;
-                    iq_entry->src2_tag = cpu->r2d.ps2;
-                }
-                
-                iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
-                iq_entry->cpu_stage = cpu->r2d;
-                addIQEntry(cpu, iq_entry);
-
-                ROB_Entry rob_entry;
-                rob_entry.pc_value = cpu->r2d.pc;
-                rob_entry.arch_dest_reg = cpu->r2d.rd;
-                rob_entry.res_mem_add_status = INVALID;
-                rob_entry.instr_type = R2R;
-                addROBEntry(cpu, rob_entry);
-                // printIssueQueue(cpu);
-                // printIssueQueue(cpu);
-                // printROB(cpu);
-
-                break;
+            if (cpu->is_phy_reg_valid[cpu->r2d.ps2])
+            {
+                cpu->r2d.ps2_value = cpu->phy_regs[cpu->r2d.ps2];
+                iq_entry->src2_ready_bit = READY;
+                iq_entry->src2_tag = cpu->r2d.ps2;
+                iq_entry->src2_value = cpu->r2d.ps2_value;
+            }
+            else
+            {
+                iq_entry->src2_ready_bit = NOT_READY;
+                iq_entry->src2_tag = cpu->r2d.ps2;
             }
             
-            case OPCODE_MUL:
+            iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
+            iq_entry->cpu_stage = cpu->r2d;
+            addIQEntry(cpu, iq_entry);
+
+            ROB_Entry rob_entry;
+            rob_entry.pc_value = cpu->r2d.pc;
+            rob_entry.arch_dest_reg = cpu->r2d.rd;
+            rob_entry.res_mem_add_status = INVALID;
+            rob_entry.instr_type = R2R;
+            rob_entry.cpu_stage = cpu->r2d;
+            addROBEntry(cpu, rob_entry);
+            // printIssueQueue(cpu);
+            // printIssueQueue(cpu);
+            // printROB(cpu);
+
+            break;
+        }
+        
+        case OPCODE_MUL:
+        {
+            cpu->reg_is_renamed[cpu->r2d.rd] = 1;
+            cpu->r2d.regs_renamed = 1;
+
+            cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
+
+            IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+            // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
+            iq_entry->pc_value = cpu->r2d.pc;
+            iq_entry->status=1;
+            iq_entry->opcode = cpu->r2d.opcode;
+            iq_entry->FU_type = MUL_FU;
+            iq_entry->imm = cpu->r2d.imm;
+            
+            // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
+            if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
             {
-                cpu->reg_is_renamed[cpu->r2d.rd] = 1;
-                cpu->r2d.regs_renamed = 1;
-
-                cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
-
-                IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
-                // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
-                iq_entry->pc_value = cpu->r2d.pc;
-                iq_entry->status=1;
-                iq_entry->opcode = cpu->r2d.opcode;
-                iq_entry->FU_type = MUL_FU;
-                iq_entry->imm = cpu->r2d.imm;
-                
-                // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
-                if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
-                {
-                    cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
-                    iq_entry->src1_ready_bit = READY;
-                    iq_entry->src1_tag = cpu->r2d.ps1;
-                    iq_entry->src1_value = cpu->r2d.ps1_value;
-                }
-                else
-                {
-                    iq_entry->src1_ready_bit = NOT_READY;
-                    iq_entry->src1_tag = cpu->r2d.ps1;
-                }
-
-                if (cpu->is_phy_reg_valid[cpu->r2d.ps2])
-                {
-                    cpu->r2d.ps2_value = cpu->phy_regs[cpu->r2d.ps2];
-                    iq_entry->src2_ready_bit = READY;
-                    iq_entry->src2_tag = cpu->r2d.ps2;
-                    iq_entry->src2_value = cpu->r2d.ps2_value;
-                }
-                else
-                {
-                    iq_entry->src2_ready_bit = NOT_READY;
-                    iq_entry->src2_tag = cpu->r2d.ps2;
-                }
-                
-                iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
-                iq_entry->cpu_stage = cpu->r2d;
-                addIQEntry(cpu, iq_entry);
-
-                ROB_Entry rob_entry;
-                rob_entry.pc_value = cpu->r2d.pc;
-                rob_entry.arch_dest_reg = cpu->r2d.rd;
-                rob_entry.res_mem_add_status = INVALID;
-                rob_entry.instr_type = R2R;
-                addROBEntry(cpu, rob_entry);
-                // printIssueQueue(cpu);
-                // printIssueQueue(cpu);
-                // printROB(cpu);
-
-                break;
+                cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
+                iq_entry->src1_ready_bit = READY;
+                iq_entry->src1_tag = cpu->r2d.ps1;
+                iq_entry->src1_value = cpu->r2d.ps1_value;
+            }
+            else
+            {
+                iq_entry->src1_ready_bit = NOT_READY;
+                iq_entry->src1_tag = cpu->r2d.ps1;
             }
 
-            case OPCODE_ADDL:
-            case OPCODE_SUBL:
+            if (cpu->is_phy_reg_valid[cpu->r2d.ps2])
             {
-                cpu->reg_is_renamed[cpu->r2d.rd] = 1;
-                cpu->r2d.regs_renamed = 1;
-
-                cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
-
-                IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
-                // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
-                iq_entry->pc_value = cpu->r2d.pc;
-                iq_entry->status=1;
-                iq_entry->opcode = cpu->r2d.opcode;
-                iq_entry->FU_type = INT_FU;
-                iq_entry->imm = cpu->r2d.imm;
-                
-                // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
-                if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
-                {
-                    cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
-                    iq_entry->src1_ready_bit = READY;
-                    iq_entry->src1_tag = cpu->r2d.ps1;
-                    iq_entry->src1_value = cpu->r2d.ps1_value;
-                }
-                else
-                {
-                    iq_entry->src1_ready_bit = NOT_READY;
-                    iq_entry->src1_tag = cpu->r2d.ps1;
-                }
-
+                cpu->r2d.ps2_value = cpu->phy_regs[cpu->r2d.ps2];
                 iq_entry->src2_ready_bit = READY;
-                
-                iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
-                iq_entry->cpu_stage = cpu->r2d;
-                addIQEntry(cpu, iq_entry);
-
-                ROB_Entry rob_entry;
-                rob_entry.pc_value = cpu->r2d.pc;
-                rob_entry.arch_dest_reg = cpu->r2d.rd;
-                rob_entry.res_mem_add_status = INVALID;
-                rob_entry.instr_type = R2R;
-                addROBEntry(cpu, rob_entry);
-                // printIssueQueue(cpu);
-                // printIssueQueue(cpu);
-                // printROB(cpu);
-
-                break;
+                iq_entry->src2_tag = cpu->r2d.ps2;
+                iq_entry->src2_value = cpu->r2d.ps2_value;
             }
-
-            case OPCODE_MOVC:
+            else
             {
-                cpu->reg_is_renamed[cpu->r2d.rd] = 1;
-                cpu->r2d.regs_renamed = 1;
-
-                cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
-                
-                IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
-                // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
-                iq_entry->pc_value = cpu->r2d.pc;
-                iq_entry->status=1;
-                iq_entry->opcode = cpu->r2d.opcode;
-                iq_entry->FU_type = INT_FU;
-                iq_entry->imm = cpu->r2d.imm;
-                iq_entry->src1_ready_bit = 1;
-                iq_entry->src2_ready_bit = 1;
-                iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
-                iq_entry->cpu_stage = cpu->r2d;
-                addIQEntry(cpu, iq_entry);
-
-                ROB_Entry rob_entry;
-                rob_entry.pc_value = cpu->r2d.pc;
-                rob_entry.arch_dest_reg = cpu->r2d.rd;
-                rob_entry.res_mem_add_status = INVALID;
-                rob_entry.instr_type = R2R;
-                addROBEntry(cpu, rob_entry);
-
-                // printIssueQueue(cpu);
-                // printROB(cpu);
-
-                break;
+                iq_entry->src2_ready_bit = NOT_READY;
+                iq_entry->src2_tag = cpu->r2d.ps2;
             }
+            
+            iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
+            iq_entry->cpu_stage = cpu->r2d;
+            addIQEntry(cpu, iq_entry);
 
-            case OPCODE_JALR:
+            ROB_Entry rob_entry;
+            rob_entry.pc_value = cpu->r2d.pc;
+            rob_entry.arch_dest_reg = cpu->r2d.rd;
+            rob_entry.res_mem_add_status = INVALID;
+            rob_entry.instr_type = R2R;
+            rob_entry.cpu_stage = cpu->r2d;
+            addROBEntry(cpu, rob_entry);
+            // printIssueQueue(cpu);
+            // printIssueQueue(cpu);
+            // printROB(cpu);
+
+            break;
+        }
+
+        case OPCODE_ADDL:
+        case OPCODE_SUBL:
+        {
+            cpu->reg_is_renamed[cpu->r2d.rd] = 1;
+            cpu->r2d.regs_renamed = 1;
+
+            cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
+
+            IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+            // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
+            iq_entry->pc_value = cpu->r2d.pc;
+            iq_entry->status=1;
+            iq_entry->opcode = cpu->r2d.opcode;
+            iq_entry->FU_type = INT_FU;
+            iq_entry->imm = cpu->r2d.imm;
+            
+            // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
+            if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
             {
-                cpu->reg_is_renamed[cpu->r2d.rd] = 1;
-                cpu->r2d.regs_renamed = 1;
-
-                cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
-
-                IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
-                // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
-                iq_entry->pc_value = cpu->r2d.pc;
-                iq_entry->status=1;
-                iq_entry->opcode = cpu->r2d.opcode;
-                iq_entry->FU_type = BRANCH_FU;
-                iq_entry->imm = cpu->r2d.imm;
-                
-                // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
-                if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
-                {
-                    cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
-                    iq_entry->src1_ready_bit = READY;
-                    iq_entry->src1_tag = cpu->r2d.ps1;
-                    iq_entry->src1_value = cpu->r2d.ps1_value;
-                }
-                else
-                {
-                    iq_entry->src1_ready_bit = NOT_READY;
-                    iq_entry->src1_tag = cpu->r2d.ps1;
-                }
-
-                iq_entry->src2_ready_bit = READY;
-                
-                iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
-                iq_entry->cpu_stage = cpu->r2d;
-                addIQEntry(cpu, iq_entry);
-
-                ROB_Entry rob_entry;
-                rob_entry.pc_value = cpu->r2d.pc;
-                rob_entry.arch_dest_reg = cpu->r2d.rd;
-                rob_entry.res_mem_add_status = INVALID;
-                rob_entry.instr_type = R2R;
-                addROBEntry(cpu, rob_entry);
-                // printIssueQueue(cpu);
-                // printIssueQueue(cpu);
-                // printROB(cpu);
-
-                break;
+                cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
+                iq_entry->src1_ready_bit = READY;
+                iq_entry->src1_tag = cpu->r2d.ps1;
+                iq_entry->src1_value = cpu->r2d.ps1_value;
             }
-
-            case OPCODE_HALT:
+            else
             {
-                // cpu->reg_is_renamed[cpu->r2d.rd] = 1;
-                // cpu->r2d.regs_renamed = 1;
-
-                // cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
-                
-                // IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
-                // // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
-                // iq_entry->pc_value = cpu->r2d.pc;
-                // iq_entry->status=1;
-                // iq_entry->opcode = cpu->r2d.opcode;
-                // iq_entry->FU_type = INT_FU;
-                // iq_entry->imm = cpu->r2d.imm;
-                // iq_entry->src1_ready_bit = 1;
-                // iq_entry->src2_ready_bit = 1;
-                // iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
-                // iq_entry->cpu_stage = cpu->r2d;
-                // addIQEntry(cpu, iq_entry);
-
-                ROB_Entry rob_entry;
-                rob_entry.pc_value = cpu->r2d.pc;
-                rob_entry.arch_dest_reg = cpu->r2d.rd;
-                rob_entry.res_mem_add_status = INVALID;
-                rob_entry.instr_type = HALT;
-                addROBEntry(cpu, rob_entry);
-
-                // printIssueQueue(cpu);
-                // printROB(cpu);
-
-                break;
+                iq_entry->src1_ready_bit = NOT_READY;
+                iq_entry->src1_tag = cpu->r2d.ps1;
             }
 
-            default:
-                break;
+            iq_entry->src2_ready_bit = READY;
+            
+            iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
+            iq_entry->cpu_stage = cpu->r2d;
+            addIQEntry(cpu, iq_entry);
+
+            ROB_Entry rob_entry;
+            rob_entry.pc_value = cpu->r2d.pc;
+            rob_entry.arch_dest_reg = cpu->r2d.rd;
+            rob_entry.res_mem_add_status = INVALID;
+            rob_entry.instr_type = R2R;
+            rob_entry.cpu_stage = cpu->r2d;
+            addROBEntry(cpu, rob_entry);
+            // printIssueQueue(cpu);
+            // printIssueQueue(cpu);
+            // printROB(cpu);
+
+            break;
+        }
+
+        case OPCODE_MOVC:
+        {
+            cpu->reg_is_renamed[cpu->r2d.rd] = 1;
+            cpu->r2d.regs_renamed = 1;
+
+            cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
+            
+            IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+            // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
+            iq_entry->pc_value = cpu->r2d.pc;
+            iq_entry->status=1;
+            iq_entry->opcode = cpu->r2d.opcode;
+            iq_entry->FU_type = INT_FU;
+            iq_entry->imm = cpu->r2d.imm;
+            iq_entry->src1_ready_bit = 1;
+            iq_entry->src2_ready_bit = 1;
+            iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
+            iq_entry->cpu_stage = cpu->r2d;
+            addIQEntry(cpu, iq_entry);
+
+            ROB_Entry rob_entry;
+            rob_entry.pc_value = cpu->r2d.pc;
+            rob_entry.arch_dest_reg = cpu->r2d.rd;
+            rob_entry.res_mem_add_status = INVALID;
+            rob_entry.instr_type = R2R;
+            rob_entry.cpu_stage = cpu->r2d;
+            addROBEntry(cpu, rob_entry);
+
+            // printIssueQueue(cpu);
+            // printROB(cpu);
+
+            break;
+        }
+
+        case OPCODE_JALR:
+        {
+            cpu->reg_is_renamed[cpu->r2d.rd] = 1;
+            cpu->r2d.regs_renamed = 1;
+
+            cpu->is_phy_reg_valid[cpu->r2d.pd] = INVALID;
+
+            IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
+            // IQ_Entry *iq_entry = malloc(sizeof(IQ_Entry));
+            iq_entry->pc_value = cpu->r2d.pc;
+            iq_entry->status=1;
+            iq_entry->opcode = cpu->r2d.opcode;
+            iq_entry->FU_type = BRANCH_FU;
+            iq_entry->imm = cpu->r2d.imm;
+            
+            // printf("\nPhy reg P%d validity: %d\n", cpu->r2d.ps1, cpu->is_phy_reg_valid[cpu->r2d.ps1]);
+            if (cpu->is_phy_reg_valid[cpu->r2d.ps1])
+            {
+                cpu->r2d.ps1_value = cpu->phy_regs[cpu->r2d.ps1];
+                iq_entry->src1_ready_bit = READY;
+                iq_entry->src1_tag = cpu->r2d.ps1;
+                iq_entry->src1_value = cpu->r2d.ps1_value;
+            }
+            else
+            {
+                iq_entry->src1_ready_bit = NOT_READY;
+                iq_entry->src1_tag = cpu->r2d.ps1;
+            }
+
+            iq_entry->src2_ready_bit = READY;
+            
+            iq_entry->dest_reg_or_lsq_index = cpu->r2d.pd;
+            iq_entry->cpu_stage = cpu->r2d;
+            addIQEntry(cpu, iq_entry);
+
+            ROB_Entry rob_entry;
+            rob_entry.pc_value = cpu->r2d.pc;
+            rob_entry.arch_dest_reg = cpu->r2d.rd;
+            rob_entry.res_mem_add_status = INVALID;
+            rob_entry.instr_type = R2R;
+            rob_entry.cpu_stage = cpu->r2d;
+            addROBEntry(cpu, rob_entry);
+            // printIssueQueue(cpu);
+            // printIssueQueue(cpu);
+            // printROB(cpu);
+
+            break;
+        }
+
+        case OPCODE_HALT:
+        {
+            ROB_Entry rob_entry;
+            rob_entry.pc_value = cpu->r2d.pc;
+            rob_entry.arch_dest_reg = cpu->r2d.rd;
+            rob_entry.res_mem_add_status = INVALID;
+            rob_entry.instr_type = HALT;
+            rob_entry.cpu_stage = cpu->r2d;
+            addROBEntry(cpu, rob_entry);
+
+            // printIssueQueue(cpu);
+            // printROB(cpu);
+
+            break;
+        }
+
+        default:
+            break;
 
         }
 
@@ -1099,7 +1127,8 @@ APEX_intFU(APEX_CPU *cpu)
         // printf("Does INTFU have an instruction: %d\n", cpu->intFU.has_insn);
         /* Copy data from execute latch to intFU latch*/
 
-        if (cpu->intFU.opcode == OPCODE_LOAD || cpu->intFU.opcode == OPCODE_LOAD)
+        // if (cpu->intFU.opcode == OPCODE_LOAD || cpu->intFU.opcode == OPCODE_STORE)
+        if (0)
         {
             cpu->memory = cpu->intFU;
             cpu->intFU.has_insn = FALSE;            
@@ -1260,15 +1289,14 @@ APEX_intFU_fwd_bus(APEX_CPU *cpu)
     // printf("Does INTFU FWD bus have an instruction: %d\n", cpu->intFU_fwd_bus.has_insn);
     if (cpu->intFU_fwd_bus.has_insn)
     {
-        cpu->phy_regs[cpu->intFU_fwd_bus.pd] = cpu->intFU_fwd_bus.result_buffer;
-        cpu->is_phy_reg_valid[cpu->intFU_fwd_bus.pd] = VALID;
-
         switch (cpu->intFU_fwd_bus.opcode)
         {
             case OPCODE_ADD:
             case OPCODE_ADDL:
             case OPCODE_SUB:
             case OPCODE_SUBL:
+                cpu->phy_regs[cpu->intFU_fwd_bus.pd] = cpu->intFU_fwd_bus.result_buffer;
+                cpu->is_phy_reg_valid[cpu->intFU_fwd_bus.pd] = VALID;
                 cpu->rename_table_ccr = cpu->intFU_fwd_bus.pd;
                 if (cpu->phy_regs[cpu->intFU_fwd_bus.pd] == 0)
                 {
@@ -1286,7 +1314,30 @@ APEX_intFU_fwd_bus(APEX_CPU *cpu)
                     cpu->phy_regs_positive_flags[cpu->phy_regs[cpu->intFU_fwd_bus.pd]] = 0;
                 }
                 break;
-            
+
+            case OPCODE_AND:
+            case OPCODE_OR:
+            case OPCODE_XOR:
+            case OPCODE_MOVC:
+                cpu->phy_regs[cpu->intFU_fwd_bus.pd] = cpu->intFU_fwd_bus.result_buffer;
+                cpu->is_phy_reg_valid[cpu->intFU_fwd_bus.pd] = VALID;            
+                break;
+
+            case OPCODE_LOAD:
+
+                break;
+
+            case OPCODE_STORE:
+                if (!cpu->memory.has_insn)
+                {
+                    LSQ_Entry memInstr = getInstructionForMemory(cpu);
+                    if (memInstr.status)
+                    {
+                        cpu->memory = memInstr.cpu_stage;
+                    }
+                }
+                break;
+
             default:
                 break;
         } 
@@ -1299,17 +1350,18 @@ APEX_intFU_fwd_bus(APEX_CPU *cpu)
         // printIssueQueue(cpu);
         // printROB(cpu);
         //printf("Result value: %d\n", cpu->intFU.result_buffer);
-    }
 
-    /* Copy data from execute latch to intFU latch*/
-    // cpu->intFU = cpu->iq_stage;
-    cpu->intFU_fwd_bus.has_insn = FALSE;
+        /* Copy data from execute latch to intFU latch*/
+        // cpu->intFU = cpu->iq_stage;
+        cpu->intFU_fwd_bus.has_insn = FALSE;
 
-    if (ENABLE_DEBUG_MESSAGES)
-    {
-        // print_stage_content("Integer FU", &cpu->intFU);
-        printf("\nIntFU FWD bus: P%d = %d\n", 
-            cpu->intFU_fwd_bus.pd, cpu->intFU_fwd_bus.result_buffer);
+        if (ENABLE_DEBUG_MESSAGES)
+        {
+            // print_stage_content("Integer FU", &cpu->intFU);
+            print_stage_content("IntFU FWD bus", &cpu->intFU_fwd_bus);
+            // printf("IntFU FWD bus: P%d = %d\n", 
+            //     cpu->intFU_fwd_bus.pd, cpu->intFU_fwd_bus.result_buffer);
+        }
     }
 }
 
@@ -1358,18 +1410,20 @@ APEX_mulFU_fwd_bus(APEX_CPU *cpu)
         // printIssueQueue(cpu);
         // printROB(cpu);
         //printf("Result value: %d\n", cpu->intFU.result_buffer);
+        /* Copy data from execute latch to intFU latch*/
+        // cpu->intFU = cpu->iq_stage;
+        cpu->mulFU_fwd_bus.has_insn = FALSE;
+
+        if (ENABLE_DEBUG_MESSAGES)
+        {
+            // print_stage_content("Integer FU", &cpu->intFU);
+            print_stage_content("MulFU FWD bus", &cpu->mulFU_fwd_bus);
+            // printf("MulFU FWD bus: P%d = %d\n", 
+            //     cpu->mulFU_fwd_bus.pd, cpu->mulFU_fwd_bus.result_buffer);
+        }        
     }
 
-    /* Copy data from execute latch to intFU latch*/
-    // cpu->intFU = cpu->iq_stage;
-    cpu->mulFU_fwd_bus.has_insn = FALSE;
 
-    if (ENABLE_DEBUG_MESSAGES)
-    {
-        // print_stage_content("Integer FU", &cpu->intFU);
-        printf("\nMulFU FWD bus: P%d = %d\n", 
-            cpu->mulFU_fwd_bus.pd, cpu->mulFU_fwd_bus.result_buffer);
-    }
 }
 
 
@@ -1422,12 +1476,6 @@ APEX_memory(APEX_CPU *cpu)
     {
         switch (cpu->memory.opcode)
         {
-            case OPCODE_ADD:
-            {
-                /* No work for ADD */
-                break;
-            }
-
             case OPCODE_LOAD:
             {
                 if (cpu->memorystage != 1)
@@ -1488,12 +1536,30 @@ APEX_memory_fwd_bus(APEX_CPU *cpu)
     // printf("Does INTFU FWD bus have an instruction: %d\n", cpu->intFU_fwd_bus.has_insn);
     if (cpu->memory_fwd_bus.has_insn)
     {
-        cpu->phy_regs[cpu->memory_fwd_bus.pd] = cpu->memory_fwd_bus.result_buffer;
-        cpu->is_phy_reg_valid[cpu->memory_fwd_bus.pd] = VALID;
+        switch (cpu->memory_fwd_bus.opcode)
+        {
+        case OPCODE_LOAD:
+            cpu->phy_regs[cpu->memory_fwd_bus.pd] = cpu->memory_fwd_bus.result_buffer;
+            cpu->is_phy_reg_valid[cpu->memory_fwd_bus.pd] = VALID;
+            updateIQEntries(cpu, MEMORY);
+            updateLSQEntries(cpu, MEMORY);
+            updateROBEntries(cpu, MEMORY);
+            break;
+
+        case OPCODE_STORE:
+            updateIQEntries(cpu, MEMORY);
+            updateLSQEntries(cpu, MEMORY);
+            updateROBEntries(cpu, MEMORY);
+            break;
+
+        default:
+            break;
+        }
+
         // printf("\nINT FWD bus pc value: %d\n", cpu->intFU_fwd_bus.pc);
-        updateIQEntries(cpu, INT_FU);
-        updateROBEntries(cpu, INT_FU);
-        
+        // updateIQEntries(cpu, INT_FU);
+        // updateROBEntries(cpu, INT_FU);
+
         cpu->memory_fwd_bus.has_insn = FALSE;
 
         if (ENABLE_DEBUG_MESSAGES)
@@ -1515,8 +1581,14 @@ APEX_memory_fwd_bus(APEX_CPU *cpu)
 static int
 APEX_ROB_retirement(APEX_CPU *cpu)
 {
-    return commitROBHead(cpu);
+    int end = commitROBHead(cpu);
 
+    if(cpu->phy_reg_to_be_freed!=-1)
+    {
+        addPhysicalRegister(cpu, cpu->phy_reg_to_be_freed);
+    }
+
+    return end;
     // if (cpu->writeback.has_insn)
     // {
     //     /* Write result to register file based on instruction type */
@@ -1589,6 +1661,10 @@ APEX_cpu_init(const char *filename)
     memset(cpu->data_memory, 0, sizeof(int) * DATA_MEMORY_SIZE);
     cpu->single_step = ENABLE_SINGLE_STEP;
 
+    for (int i=0; i<REG_FILE_SIZE; i++)
+    {
+        cpu->rename_table[i] = -1;
+    }
 
     cpu->free_list_front = -1;
     cpu->free_list_rear = -1;
@@ -1663,6 +1739,8 @@ APEX_cpu_run(APEX_CPU *cpu)
             printf("--------------------------------------------\n");
         }
 
+
+
         if (APEX_ROB_retirement(cpu))
         {
             /* Halt in writeback stage */
@@ -1670,12 +1748,12 @@ APEX_cpu_run(APEX_CPU *cpu)
             break;
         }
 
-        
-        // // APEX_memory(cpu);
-
+        APEX_memory_fwd_bus(cpu);
         APEX_mulFU_fwd_bus(cpu);
         APEX_intFU_fwd_bus(cpu);
 
+
+        APEX_memory(cpu);
         APEX_mulFU(cpu);
         APEX_intFU(cpu);
         
@@ -1687,6 +1765,11 @@ APEX_cpu_run(APEX_CPU *cpu)
         print_phy_reg_file(cpu);
         print_rename_table(cpu);
         print_reg_file(cpu);
+        printFreeList(cpu);
+        printIssueQueue(cpu);
+        printLSQ(cpu);
+        printROB(cpu);
+        print_data_mem(cpu);
 
         if (cpu->single_step)
         {

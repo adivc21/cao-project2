@@ -11,3 +11,9 @@ void addLSQEntry(APEX_CPU *cpu, LSQ_Entry lsq_entry);
 
 // Update LSQ entries with latest values
 void updateLSQEntries(APEX_CPU *cpu, int FU_type);
+
+// Fetch instruction for memory operation
+LSQ_Entry getInstructionForMemory(APEX_CPU *cpu);
+
+// Print the LSQ entries
+void printLSQ(APEX_CPU *cpu);

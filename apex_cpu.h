@@ -72,7 +72,7 @@ typedef struct IQ_Entry
 /* Format of an LSQ Entry  */
 typedef struct LSQ_Entry
 {
-
+    int pc_value;
     int status;
     int load_or_store;
     int mem_add_is_valid;
@@ -81,6 +81,7 @@ typedef struct LSQ_Entry
     int src1_ready_bit;
     int src1_tag;
     int src1_value;
+    CPU_Stage cpu_stage;
     // struct LSQ_Entry *next;
 } LSQ_Entry;
 
@@ -95,6 +96,7 @@ typedef struct ROB_Entry
     int store_value_valid;
     int exception_codes;
     int instr_type;
+    CPU_Stage cpu_stage;
 } ROB_Entry;
 
 /* Model of APEX CPU */
@@ -145,8 +147,12 @@ typedef struct APEX_CPU
     IQ_Entry *mulFUInstruction;
     IQ_Entry *branchFUInstruction;
 
+    LSQ_Entry memoryInstruction;
+
     int mulFUstage;
     int memorystage;
+
+    int phy_reg_to_be_freed;
 
     int is_int_unit_free;
     int is_mul_unit_free;
