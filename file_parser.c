@@ -84,7 +84,7 @@ set_opcode_str(const char *opcode_str)
         return OPCODE_OR;
     }
 
-    if (strcmp(opcode_str, "EXOR") == 0)
+    if (strcmp(opcode_str, "XOR") == 0)
     {
         return OPCODE_XOR;
     }

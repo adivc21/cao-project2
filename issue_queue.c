@@ -314,6 +314,32 @@ void updateIQEntries(APEX_CPU *cpu, int FU_type)
         }
     }
 
+    if (FU_type == MEMORY)
+    {
+        while (current != NULL)
+        {
+            switch (current->opcode)
+            {
+            case LOAD:
+                if (current->src1_tag == cpu->intFU_fwd_bus.pd)
+                {
+                    current->src1_value = cpu->intFU_fwd_bus.result_buffer;
+                    current->src1_ready_bit = 1;
+                }
+                if (current->src2_tag == cpu->intFU_fwd_bus.pd)
+                {
+                    current->src2_value = cpu->intFU_fwd_bus.result_buffer;
+                    current->src2_ready_bit = 1;
+                }   
+                break;
+            
+            default:
+                break;
+            }
+            current = current->next;
+        }
+    }    
+
     return;
 }
 

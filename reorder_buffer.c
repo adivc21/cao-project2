@@ -143,7 +143,11 @@ void updateROBEntries(APEX_CPU *cpu, int FU_type)
                     break;    
 
                 case STORE:
-                    cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                    // printf("\n------------------------------------------------Inside ROB update for STORE---------------------------------------------------------------------\n");
+                    // printf("Memory address for STORE: %d", cpu->intFU_fwd_bus.memory_address);
+                    cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.memory_address;                
+                    // cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                    break;
                 
                 default:
                     break;
@@ -167,8 +171,61 @@ void updateROBEntries(APEX_CPU *cpu, int FU_type)
                 break; 
 
             case STORE:
+                // printf("\n------------------------------------------------Inside ROB update for STORE---------------------------------------------------------------------\n");
+                // printf("Memory address for STORE: %d", cpu->intFU_fwd_bus.memory_address);
                 cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.memory_address;
+                // cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                break;
+                
+            default:
+                break;
+            }    
+
+        }
+    }
+
+    if (FU_type == MEMORY)
+    {
+        for(i=cpu->rob_front; i != cpu->rob_rear; i = (i+1)%REORDER_BUFFER_SIZE)
+        {
+            if (cpu->reorder_buffer[i].pc_value == cpu->memory_fwd_bus.pc)
+            {
+                switch (cpu->reorder_buffer[i].instr_type)
+                {
+                case LOAD:
+                    cpu->reorder_buffer[i].result = cpu->memory_fwd_bus.result_buffer;
+                    cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                    break;    
+
+                case STORE:
+                    // printf("\n------------------------------------------------Inside ROB update for STORE---------------------------------------------------------------------\n");
+                    // printf("Memory address for STORE: %d", cpu->intFU_fwd_bus.memory_address);
+                    // cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.memory_address;                
+                    cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                    break;
+                
+                default:
+                    break;
+                }    
+
+            }
+        }
+
+        if (cpu->reorder_buffer[i].pc_value == cpu->memory_fwd_bus.pc)
+        {
+            switch (cpu->reorder_buffer[i].instr_type)
+            {
+            case LOAD:
+                cpu->reorder_buffer[i].result = cpu->memory_fwd_bus.result_buffer;
                 cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                break; 
+
+            case STORE:
+                // printf("\n------------------------------------------------Inside ROB update for STORE---------------------------------------------------------------------\n");
+                // printf("Memory address for STORE: %d", cpu->intFU_fwd_bus.memory_address);
+                // cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.memory_address;
+                cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                break;
                 
             default:
                 break;
@@ -218,16 +275,22 @@ int commitROBHead(APEX_CPU *cpu)
 
                 cpu->regs[cpu->reorder_buffer[cpu->rob_front].arch_dest_reg]
                     = cpu->reorder_buffer[cpu->rob_front].result;
-                cpu->phy_reg_to_be_freed = cpu->reorder_buffer[cpu->rob_front].cpu_stage.pd;                    
-                cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+                cpu->phy_reg_to_be_freed = cpu->reorder_buffer[cpu->rob_front].cpu_stage.pd;    
 
+                if (cpu->rob_front == cpu->rob_rear) 
+                {
+                    cpu->rob_front = -1;
+                    cpu->rob_rear = -1;
+                }
+                else 
+                {
+                    cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+                }                                    
                 
                 // printf("Physical reg to be freed: P%d\n", cpu->reorder_buffer[cpu->rob_front].cpu_stage.pd);
                 // printf("Arch dest reg: R%d\n", cpu->reorder_buffer[cpu->rob_front].cpu_stage.rd);
                 // printf("ROB Arch dest reg: R%d\n", cpu->reorder_buffer[cpu->rob_front].arch_dest_reg);
                 // printf("PC value: R%d\n", cpu->reorder_buffer[cpu->rob_front].cpu_stage.pc);
-
-
 
                 cpu->insn_completed++;
                 return 0;
@@ -242,8 +305,15 @@ int commitROBHead(APEX_CPU *cpu)
 
                 cpu->phy_reg_to_be_freed = cpu->reorder_buffer[cpu->rob_front].cpu_stage.pd;    
 
-                cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
-
+                if (cpu->rob_front == cpu->rob_rear) 
+                {
+                    cpu->rob_front = -1;
+                    cpu->rob_rear = -1;
+                }
+                else 
+                {
+                    cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+                }                                    
 
                 cpu->insn_completed++;
                 return 0;
@@ -256,8 +326,15 @@ int commitROBHead(APEX_CPU *cpu)
                 // cpu->regs[cpu->reorder_buffer[cpu->rob_front].arch_dest_reg]
                 //     = cpu->reorder_buffer[cpu->rob_front].result;
                 cpu->phy_reg_to_be_freed = -1;
-                cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
-
+                if (cpu->rob_front == cpu->rob_rear) 
+                {
+                    cpu->rob_front = -1;
+                    cpu->rob_rear = -1;
+                }
+                else 
+                {
+                    cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+                }                                    
                 
 
                 cpu->insn_completed++;
@@ -267,12 +344,20 @@ int commitROBHead(APEX_CPU *cpu)
 
         case HALT:
             cpu->phy_reg_to_be_freed = -1;
-            cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+            if (cpu->rob_front == cpu->rob_rear) 
+            {
+                cpu->rob_front = -1;
+                cpu->rob_rear = -1;
+            }
+            else 
+            {
+                cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
+            }                                    
             cpu->insn_completed++;
             return 1;
 
         default:
-            printf("PC value: R%d\n", cpu->reorder_buffer[cpu->rob_front].cpu_stage.pc);
+            // printf("PC value: R%d\n", cpu->reorder_buffer[cpu->rob_front].cpu_stage.pc);
             cpu->phy_reg_to_be_freed = -1;
             break;
     }

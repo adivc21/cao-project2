@@ -265,7 +265,7 @@ print_data_mem(const APEX_CPU *cpu)
             printf("MEM[%-4d]  |  Data Value = [%-4d]\n", i, cpu->data_memory[i]);
         }
     }
-    printf("Note: Data Memory locations having the value zero are not printed");   
+    printf("Note: Data Memory locations having the value zero are not printed\n");   
     //     printf("----------\n%s\n----------\n", 
         // "Note: Data Memory locations having the value zero are not printed");    
 
@@ -496,7 +496,6 @@ APEX_r2d(APEX_CPU *cpu)
             lsq_entry.cpu_stage = cpu->r2d;
             addLSQEntry(cpu, lsq_entry);
             
-        
         
         
             IQ_Entry *iq_entry = (IQ_Entry *)calloc(1, sizeof(IQ_Entry));
@@ -1036,7 +1035,7 @@ APEX_intFU(APEX_CPU *cpu)
                 cpu->intFU = cpu->intFUInstruction->cpu_stage;
                 cpu->intFU.memory_address 
                     = cpu->intFUInstruction->src1_value + cpu->intFUInstruction->imm;
-                cpu->intFU.pd = cpu->intFUInstruction->dest_reg_or_lsq_index;
+                // cpu->intFU.pd = cpu->intFUInstruction->dest_reg_or_lsq_index;
                 // printf("Dest Phy Reg: P%d\n", cpu->intFU.pd);
                 // printf("Result value: %d\n", cpu->intFU.result_buffer);
                 break;
@@ -1128,16 +1127,16 @@ APEX_intFU(APEX_CPU *cpu)
         /* Copy data from execute latch to intFU latch*/
 
         // if (cpu->intFU.opcode == OPCODE_LOAD || cpu->intFU.opcode == OPCODE_STORE)
-        if (0)
-        {
-            cpu->memory = cpu->intFU;
-            cpu->intFU.has_insn = FALSE;            
-        }
-        else
-        {
+        // if (0)
+        // {
+        //     cpu->memory = cpu->intFU;
+        //     cpu->intFU.has_insn = FALSE;            
+        // }
+        // else
+        // {
             cpu->intFU_fwd_bus = cpu->intFU;
             cpu->intFU.has_insn = FALSE;    
-        }
+        // }
 
 
         if (ENABLE_DEBUG_MESSAGES)
@@ -1328,14 +1327,6 @@ APEX_intFU_fwd_bus(APEX_CPU *cpu)
                 break;
 
             case OPCODE_STORE:
-                if (!cpu->memory.has_insn)
-                {
-                    LSQ_Entry memInstr = getInstructionForMemory(cpu);
-                    if (memInstr.status)
-                    {
-                        cpu->memory = memInstr.cpu_stage;
-                    }
-                }
                 break;
 
             default:
@@ -1361,6 +1352,15 @@ APEX_intFU_fwd_bus(APEX_CPU *cpu)
             print_stage_content("IntFU FWD bus", &cpu->intFU_fwd_bus);
             // printf("IntFU FWD bus: P%d = %d\n", 
             //     cpu->intFU_fwd_bus.pd, cpu->intFU_fwd_bus.result_buffer);
+        }
+    }
+    
+    if (!cpu->memory.has_insn)
+    {
+        LSQ_Entry memInstr = getInstructionForMemory(cpu);
+        if (memInstr.status)
+        {
+            cpu->memory = memInstr.cpu_stage;
         }
     }
 }
@@ -1423,7 +1423,14 @@ APEX_mulFU_fwd_bus(APEX_CPU *cpu)
         }        
     }
 
-
+    if (!cpu->memory.has_insn)
+    {
+        LSQ_Entry memInstr = getInstructionForMemory(cpu);
+        if (memInstr.status)
+        {
+            cpu->memory = memInstr.cpu_stage;
+        }
+    }
 }
 
 
@@ -1487,13 +1494,17 @@ APEX_memory(APEX_CPU *cpu)
                 
                 else
                 {
-                /* Read from data memory */
-                cpu->memory.result_buffer
-                    = cpu->data_memory[cpu->memory.memory_address];
-                // cpu->memory.pd = cpu->memory->dest_reg_or_lsq_index;
-           
-                break;
+                    /* Read from data memory */
+                    cpu->memory.result_buffer
+                        = cpu->data_memory[cpu->memory.memory_address];
+                    cpu->memorystage = 0;
+                    updateIQEntries(cpu, MEMORY);
+                    updateLSQEntries(cpu, MEMORY);
+                    updateROBEntries(cpu, MEMORY);
+                    // cpu->memory.pd = cpu->memory->dest_reg_or_lsq_index;
+            
                 }
+                break;
             }
             
             case OPCODE_STORE:
@@ -1505,19 +1516,24 @@ APEX_memory(APEX_CPU *cpu)
                     return;
                 }
                 
-                else{
-                
-                /* Write data to memory */
-                cpu->data_memory[cpu->memory.memory_address]
-                    = cpu->memory.ps1_value;
-           
-                break;
+                else
+                {
+                    /* Write data to memory */
+                    cpu->data_memory[cpu->memory.memory_address]
+                        = cpu->memory.ps1_value;
+                    cpu->memorystage = 0;
+                    updateIQEntries(cpu, MEMORY);
+                    updateLSQEntries(cpu, MEMORY);
+                    updateROBEntries(cpu, MEMORY);
                 }
+                break;
             }
 
             default:
                 break;
         }
+
+
 
         /* Copy data from memory latch to writeback latch*/
         cpu->memory_fwd_bus = cpu->memory;
@@ -1680,6 +1696,7 @@ APEX_cpu_init(const char *filename)
     // cpu->intFUInstruction = (IQ_Entry *) calloc(1, sizeof(IQ_Entry));
     // cpu->intFUInstruction = NULL;
     cpu->mulFUstage = 0;
+    cpu->memorystage = 0;
 
     cpu->lsq_front = -1;
     cpu->lsq_rear = -1;

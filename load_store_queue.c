@@ -146,8 +146,8 @@ void updateLSQEntries(APEX_CPU *cpu, int FU_type)
                 switch (cpu->load_store_queue[i].load_or_store)
                 {
                 case LOAD:
-                    // cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
-                    // cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                    cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+                    cpu->load_store_queue[i].mem_add_is_valid = VALID;
                     break;
 
                 case STORE:
@@ -170,8 +170,8 @@ void updateLSQEntries(APEX_CPU *cpu, int FU_type)
             switch (cpu->load_store_queue[i].load_or_store)
             {
             case LOAD:
-                // cpu->reorder_buffer[i].result = cpu->intFU_fwd_bus.result_buffer;
-                // cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+                cpu->load_store_queue[i].mem_add_is_valid = VALID;
                 break;
 
             case STORE:
@@ -189,6 +189,130 @@ void updateLSQEntries(APEX_CPU *cpu, int FU_type)
         }
     }
 
+    if (FU_type == MUL_FU)
+    {
+        for(i=cpu->lsq_front; i != cpu->lsq_rear; i = (i+1)%REORDER_BUFFER_SIZE)
+        {
+            if (cpu->load_store_queue[i].pc_value == cpu->mulFU_fwd_bus.pc)
+            {
+                switch (cpu->load_store_queue[i].load_or_store)
+                {
+                case LOAD:
+                if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                {
+                    cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                    cpu->load_store_queue[i].src1_ready_bit = READY;
+                }
+                // cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+                // cpu->load_store_queue[i].mem_add_is_valid = VALID;
+                    break;
+
+                case STORE:
+                    if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                    {
+                        cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                        cpu->load_store_queue[i].src1_ready_bit = READY;
+                    }
+                    // cpu->load_store_queue[i].mem_add = cpu->mulFU_fwd_bus.memory_address;
+                    // cpu->load_store_queue[i].mem_add_is_valid = VALID;
+                
+                default:
+                    break;
+                }    
+            }
+        }
+
+        if (cpu->load_store_queue[i].pc_value == cpu->mulFU_fwd_bus.pc)
+        {
+            switch (cpu->load_store_queue[i].load_or_store)
+            {
+            case LOAD:
+            if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+            {
+                cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                cpu->load_store_queue[i].src1_ready_bit = READY;
+            }
+            // cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+            // cpu->load_store_queue[i].mem_add_is_valid = VALID;
+                break;
+
+            case STORE:
+                if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                {
+                    cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                    cpu->load_store_queue[i].src1_ready_bit = READY;
+                }
+                // cpu->load_store_queue[i].mem_add = cpu->mulFU_fwd_bus.memory_address;
+                // cpu->load_store_queue[i].mem_add_is_valid = VALID;
+            
+            default:
+                break;
+            }    
+        }
+    }
+
+    if (FU_type == MEMORY)
+    {
+        for(i=cpu->lsq_front; i != cpu->lsq_rear; i = (i+1)%REORDER_BUFFER_SIZE)
+        {
+            if (cpu->load_store_queue[i].src1_tag == cpu->memory_fwd_bus.pd)
+            {
+                switch (cpu->load_store_queue[i].load_or_store)
+                {
+                case LOAD:
+                    if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                    {
+                        cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                        cpu->load_store_queue[i].src1_ready_bit = READY;
+                    }
+                    // cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+                    // cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                    break;
+
+                case STORE:
+                    // if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                    // {
+                    //     cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                    //     cpu->load_store_queue[i].src1_ready_bit = READY;
+                    // }
+                    // cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+                    // cpu->load_store_queue[i].mem_add_is_valid = VALID;
+                
+                default:
+                    break;
+                }    
+            }
+        }
+
+        if (cpu->load_store_queue[i].src1_tag == cpu->memory_fwd_bus.pd)
+        {
+            switch (cpu->load_store_queue[i].load_or_store)
+            {
+            case LOAD:
+                if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                {
+                    cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                    cpu->load_store_queue[i].src1_ready_bit = READY;
+                }
+                // cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+                // cpu->reorder_buffer[i].res_mem_add_status = VALID;
+                break;
+
+            case STORE:
+                // if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                // {
+                //     cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                //     cpu->load_store_queue[i].src1_ready_bit = READY;
+                // }
+                // cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
+                // cpu->load_store_queue[i].mem_add_is_valid = VALID;
+            
+            default:
+                break;
+            }    
+        }
+    }
+
     return;
 }
 
@@ -198,7 +322,7 @@ LSQ_Entry getInstructionForMemory(APEX_CPU *cpu)
 {
     LSQ_Entry load_or_store;
     load_or_store.status = 0;
-    // cpu->phy_reg_to_be_freed = -1;
+    
     if (isLSQEmpty(cpu))
     {
         return load_or_store;
@@ -206,25 +330,45 @@ LSQ_Entry getInstructionForMemory(APEX_CPU *cpu)
 
     switch (cpu->load_store_queue[cpu->lsq_front].load_or_store)
     {
+        
         case LOAD:
-            // if (cpu->reorder_buffer[cpu->rob_front].res_mem_add_status)
-            // {
-            //     cpu->regs[cpu->reorder_buffer[cpu->rob_front].arch_dest_reg]
-            //         = cpu->reorder_buffer[cpu->rob_front].result;
-            //     cpu->phy_reg_to_be_freed = cpu->reorder_buffer[cpu->rob_front].cpu_stage.pd;                    
-            //     cpu->rob_front = (cpu->rob_front + 1) % REORDER_BUFFER_SIZE;
-            //     return 0;
-            // }
+            if (cpu->load_store_queue[cpu->lsq_front].mem_add_is_valid)
+            {
+                load_or_store = cpu->load_store_queue[cpu->lsq_front];                   
+                if (cpu->lsq_front == cpu->lsq_rear) 
+                {
+                    cpu->lsq_front = -1;
+                    cpu->lsq_rear = -1;
+                }
+                else 
+                {
+                    cpu->lsq_front = (cpu->lsq_front + 1) % LOAD_STORE_QUEUE_SIZE;
+                }                    
+                return load_or_store;                    
+            }
             break;
 
         case STORE:
+            
             if (cpu->reorder_buffer[cpu->rob_front].instr_type == STORE)
             {
+                // printf("\n------------------------------------------------STORE entry to be fetched from LSQ---------------------------------------------------------------------\n");
+                // printf("STORE instr mem addr valid: %d", cpu->load_store_queue[cpu->lsq_front].mem_add_is_valid);
+                // printf("STORE instr Src 1 ready: %d", cpu->load_store_queue[cpu->lsq_front].src1_ready_bit);
                 if (cpu->load_store_queue[cpu->lsq_front].mem_add_is_valid
                     && cpu->load_store_queue[cpu->lsq_front].src1_ready_bit)
                 {
+                    
                     load_or_store = cpu->load_store_queue[cpu->lsq_front];
-                    cpu->lsq_front = (cpu->lsq_front + 1) % LOAD_STORE_QUEUE_SIZE;
+                    if (cpu->lsq_front == cpu->lsq_rear) 
+                    {
+                        cpu->lsq_front = -1;
+                        cpu->lsq_rear = -1;
+                    }
+                    else 
+                    {
+                        cpu->lsq_front = (cpu->lsq_front + 1) % LOAD_STORE_QUEUE_SIZE;
+                    }                    
                     return load_or_store;                    
                 }
             }
