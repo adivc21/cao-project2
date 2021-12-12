@@ -158,11 +158,27 @@ void updateLSQEntries(APEX_CPU *cpu, int FU_type)
                     }
                     cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
                     cpu->load_store_queue[i].mem_add_is_valid = VALID;
+                break;
                 
                 default:
                     break;
                 }    
             }
+
+            // if (cpu->load_store_queue[i].pc_value == cpu->intFU_fwd_bus.pc)
+            // {
+            switch (cpu->intFU_fwd_bus.opcode)
+            {
+            case OPCODE_MOVC:
+                if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+                {
+                    cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                    cpu->load_store_queue[i].src1_ready_bit = READY;
+                }            
+            default:
+                break;
+            }    
+            // }
         }
 
         if (cpu->load_store_queue[i].pc_value == cpu->intFU_fwd_bus.pc)
@@ -182,11 +198,24 @@ void updateLSQEntries(APEX_CPU *cpu, int FU_type)
                 }
                 cpu->load_store_queue[i].mem_add = cpu->intFU_fwd_bus.memory_address;
                 cpu->load_store_queue[i].mem_add_is_valid = VALID;
+                break;
             
             default:
                 break;
             }    
         }
+
+        switch (cpu->intFU_fwd_bus.opcode)
+        {
+        case OPCODE_MOVC:
+            if (cpu->is_phy_reg_valid[cpu->load_store_queue[i].src1_tag])
+            {
+                cpu->load_store_queue[i].src1_value = cpu->phy_regs[cpu->load_store_queue[i].src1_tag];
+                cpu->load_store_queue[i].src1_ready_bit = READY;
+            }            
+        default:
+            break;
+        }    
     }
 
     if (FU_type == MUL_FU)

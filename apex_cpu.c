@@ -1318,6 +1318,7 @@ APEX_intFU_fwd_bus(APEX_CPU *cpu)
             case OPCODE_OR:
             case OPCODE_XOR:
             case OPCODE_MOVC:
+                printf("-----------------------------MOVC in INT FWD bus---------------------------------\n");
                 cpu->phy_regs[cpu->intFU_fwd_bus.pd] = cpu->intFU_fwd_bus.result_buffer;
                 cpu->is_phy_reg_valid[cpu->intFU_fwd_bus.pd] = VALID;            
                 break;

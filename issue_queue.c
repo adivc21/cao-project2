@@ -109,26 +109,38 @@ IQ_Entry * getInstructionForIntFU(APEX_CPU *cpu)
     current = cpu->iq_head;
     // printf("\nTest line 1\n");
     if (current != NULL 
-            && current->FU_type == INT_FU 
-            && current->src1_ready_bit && current->src2_ready_bit)
+            && current->FU_type == INT_FU)
     {
-        // printf("\nTest line 1\n");
-        ret_ptr = current;
-        // current = current->next;
-        cpu->iq_head = current->next;
-        ret_ptr->next = NULL;
-        // printf("\n Retrieved IQ entry PC value: %d", ret_ptr->pc_value);
-        // printf("\n Status: %d", ptr->status);
-        // printf("\n FU type: %d", ptr->FU_type);
-        // printf("\n Literal value: %d", ptr->imm);
-        // printf("\n Src1 ready bit: %d", ptr->src1_ready_bit);
-        // printf("\n Src1 tag: %d", ptr->src1_tag);
-        // printf("\n Src1 value: %d", ptr->src1_value);
-        // printf("\n Src2 ready bit: %d", ptr->src2_ready_bit);
-        // printf("\n Src2 tag: %d", ptr->src2_tag);
-        // printf("\n Src2 value: %d", ptr->src2_value);
-        // printf("\n Phy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
-        return ret_ptr;
+        // if (cpu->is_phy_reg_valid[current->src1_tag])
+        // {
+        //     current->src1_value = cpu->phy_regs[current->src1_tag];
+        //     current->src1_ready_bit = READY;
+        // }
+        // if (cpu->is_phy_reg_valid[current->src2_tag])
+        // {
+        //     current->src2_value = cpu->phy_regs[current->src2_tag];
+        //     current->src2_ready_bit = READY;
+        // }        
+        if (current->src1_ready_bit && current->src2_ready_bit)
+        {
+            ret_ptr = current;
+            // current = current->next;
+            cpu->iq_head = current->next;
+            ret_ptr->next = NULL;
+            // printf("\n Retrieved IQ entry PC value: %d", ret_ptr->pc_value);
+            // printf("\n Status: %d", ptr->status);
+            // printf("\n FU type: %d", ptr->FU_type);
+            // printf("\n Literal value: %d", ptr->imm);
+            // printf("\n Src1 ready bit: %d", ptr->src1_ready_bit);
+            // printf("\n Src1 tag: %d", ptr->src1_tag);
+            // printf("\n Src1 value: %d", ptr->src1_value);
+            // printf("\n Src2 ready bit: %d", ptr->src2_ready_bit);
+            // printf("\n Src2 tag: %d", ptr->src2_tag);
+            // printf("\n Src2 value: %d", ptr->src2_value);
+            // printf("\n Phy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
+            return ret_ptr;
+        }
+
     }
     else
     {
@@ -150,6 +162,35 @@ IQ_Entry * getInstructionForIntFU(APEX_CPU *cpu)
         if (current->FU_type == INT_FU)
         {
             // printf("\nTest line 1\n");
+            // if (cpu->is_phy_reg_valid[current->src1_tag])
+            // {
+            //     current->src1_value = cpu->phy_regs[current->src1_tag];
+            //     current->src1_ready_bit = READY;
+            // }
+            // if (cpu->is_phy_reg_valid[current->src2_tag])
+            // {
+            //     current->src2_value = cpu->phy_regs[current->src2_tag];
+            //     current->src2_ready_bit = READY;
+            // }        
+            // if (current->src1_ready_bit && current->src2_ready_bit)
+            // {
+            //     ret_ptr = current;
+            //     // current = current->next;
+            //     cpu->iq_head = current->next;
+            //     ret_ptr->next = NULL;
+            //     // printf("\n Retrieved IQ entry PC value: %d", ret_ptr->pc_value);
+            //     // printf("\n Status: %d", ptr->status);
+            //     // printf("\n FU type: %d", ptr->FU_type);
+            //     // printf("\n Literal value: %d", ptr->imm);
+            //     // printf("\n Src1 ready bit: %d", ptr->src1_ready_bit);
+            //     // printf("\n Src1 tag: %d", ptr->src1_tag);
+            //     // printf("\n Src1 value: %d", ptr->src1_value);
+            //     // printf("\n Src2 ready bit: %d", ptr->src2_ready_bit);
+            //     // printf("\n Src2 tag: %d", ptr->src2_tag);
+            //     // printf("\n Src2 value: %d", ptr->src2_value);
+            //     // printf("\n Phy dest reg or LSQ index: %d", ptr->dest_reg_or_lsq_index);
+            //     return ret_ptr;
+            // }
             if (current->src1_ready_bit && current->src2_ready_bit)
             {
                 ret_ptr = current;
@@ -265,9 +306,11 @@ void updateIQEntries(APEX_CPU *cpu, int FU_type)
     {
         while (current != NULL)
         {
-            switch (current->opcode)
+            switch (cpu->intFU_fwd_bus.opcode)
             {
+            // case STORE:
             case OPCODE_MOVC:
+            // printf("-----------------------------Updating MOVC result in IQ---------------------------------\n");
                 if (current->src1_tag == cpu->intFU_fwd_bus.pd)
                 {
                     current->src1_value = cpu->intFU_fwd_bus.result_buffer;
@@ -292,7 +335,7 @@ void updateIQEntries(APEX_CPU *cpu, int FU_type)
     {
         while (current != NULL)
         {
-            switch (current->opcode)
+            switch (cpu->mulFU_fwd_bus.opcode)
             {
                 case OPCODE_MUL:
                     if (current->src1_tag == cpu->mulFU_fwd_bus.pd)
@@ -318,7 +361,7 @@ void updateIQEntries(APEX_CPU *cpu, int FU_type)
     {
         while (current != NULL)
         {
-            switch (current->opcode)
+            switch (cpu->memory_fwd_bus.opcode)
             {
             case LOAD:
                 if (current->src1_tag == cpu->intFU_fwd_bus.pd)
@@ -342,187 +385,3 @@ void updateIQEntries(APEX_CPU *cpu, int FU_type)
 
     return;
 }
-
-
-// //insert link at the first location
-// void insertFirst(int status, int FU_type) 
-// {
-//    //create a link
-//    struct IQ_Entry *link = (struct IQ_Entry*) malloc(sizeof(struct IQ_Entry));
-	
-//    link->status = status;
-//    link->FU_type = FU_type;
-	
-//    //point it to old first IQ_Entry
-//    link->next = head;
-	
-//    //point first to new first IQ_Entry
-//    head = link;
-// }
-
-// //delete first item
-// struct IQ_Entry* deleteFirst() 
-// {
-//    //save reference to first link
-//    struct IQ_Entry *tempLink = head;
-	
-//    //mark next to first link as first 
-//    head = head->next;
-	
-//    //return the deleted link
-//    return tempLink;
-// }
-
-// //is list empty
-// int isEmpty() 
-// {
-//    return head == NULL;
-// }
-
-// int length() 
-// {
-//    int length = 0;
-//    struct IQ_Entry *current;
-	
-//    for(current = head; current != NULL; current = current->next) {
-//       length++;
-//    }
-	
-//    return length;
-// }
-
-// //find a link with given status
-// struct IQ_Entry* find(int status) 
-// {
-//    //start from the first link
-//    struct IQ_Entry* current = head;
-
-//    //if list is empty
-//    if(head == NULL) 
-//    {
-//       return NULL;
-//    }
-
-//    //navigate through list
-//    while(current->status != status) 
-//    {
-//       //if it is last IQ_Entry
-//       if(current->next == NULL) 
-//       {
-//          return NULL;
-//       } 
-//       else 
-//       {
-//          //go to next link
-//          current = current->next;
-//       }
-//    }      
-	
-//    //if FU_type found, return the current Link
-//    return current;
-// }
-
-// //delete a link with given status
-// struct IQ_Entry* delete(int status) 
-// {
-//    //start from the first link
-//    struct IQ_Entry* current = head;
-//    struct IQ_Entry* previous = NULL;
-	
-//    //if list is empty
-//    if(head == NULL) 
-//    {
-//       return NULL;
-//    }
-
-//    //navigate through list
-//    while(current->status != status) 
-//    {
-//       //if it is last IQ_Entry
-//       if(current->next == NULL) 
-//       {
-//          return NULL;
-//       } 
-//       else 
-//       {
-//          //store reference to current link
-//          previous = current;
-//          //move to next link
-//          current = current->next;
-//       }
-//    }
-
-//    //found a match, update the link
-//    if(current == head) 
-//    {
-//       //change first to point to next link
-//       head = head->next;
-//    } 
-//    else 
-//    {
-//       //bypass the current link
-//       previous->next = current->next;
-//    }    
-	
-//    return current;
-// }
-
-
-// void main() {
-//    insertFirst(1,10);
-//    insertFirst(2,20);
-//    insertFirst(3,30);
-//    insertFirst(4,1);
-//    insertFirst(5,40);
-//    insertFirst(6,56); 
-
-//    printf("Original List: "); 
-	
-//    //print list
-//    printList();
-
-//    while(!isEmpty()) {            
-//       struct IQ_Entry *temp = deleteFirst();
-//       printf("\nDeleted value:");
-//       printf("(%d,%d) ",temp->status,temp->FU_type);
-//    }  
-	
-//    printf("\nList after deleting all items: ");
-//    printList();
-//    insertFirst(1,10);
-//    insertFirst(2,20);
-//    insertFirst(3,30);
-//    insertFirst(4,1);
-//    insertFirst(5,40);
-//    insertFirst(6,56);
-   
-//    printf("\nRestored List: ");
-//    printList();
-//    printf("\n");  
-
-//    struct IQ_Entry *foundLink = find(4);
-	
-//    if(foundLink != NULL) {
-//       printf("Element found: ");
-//       printf("(%d,%d) ",foundLink->status,foundLink->FU_type);
-//       printf("\n");  
-//    } else {
-//       printf("Element not found.");
-//    }
-
-//    delete(4);
-//    printf("List after deleting an item: ");
-//    printList();
-//    printf("\n");
-//    foundLink = find(4);
-	
-//    if(foundLink != NULL) {
-//       printf("Element found: ");
-//       printf("(%d,%d) ",foundLink->status,foundLink->FU_type);
-//       printf("\n");
-//    } else {
-//       printf("Element not found.");
-//    }
-	
-//    printf("\n");
-// }

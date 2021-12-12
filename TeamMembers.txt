@@ -16,3 +16,8 @@ MOVC
 HALT
 ADDL
 SUBL
+LOAD 
+STORE
+
+LOAD and STORE working when there are intermediate instructions in between.
+
